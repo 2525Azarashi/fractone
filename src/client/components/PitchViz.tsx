@@ -4,7 +4,7 @@ import type { ComposeResult, Note, ScaleName } from '../../lib/types'
 import { midiToName, inScale } from '../../lib/theory'
 import { usePlayhead } from '../hooks/useTransport'
 
-const LEVEL_COLORS = ['#ffffff', '#ff4fd8', '#d14bff', '#9b5cff', '#6f7bff', '#39b8ff', '#39e6ff', '#5effc4', '#ffd166']
+const LEVEL_COLORS = ['#ffffff', '#ff5bd6', '#c04bff', '#8b5cff', '#6b7bff', '#4fb8ff', '#4fe3ff', '#7af0c4', '#ffcf7a']
 
 function PitchVizImpl({ sequence, result, bpm, keyRoot, scale, generation }: { sequence: Note[]; result: ComposeResult | null; bpm: number; keyRoot: number; scale: ScaleName; generation: number }) {
   const [showTrace, setShowTrace] = useState(true)
@@ -38,20 +38,20 @@ function PitchVizImpl({ sequence, result, bpm, keyRoot, scale, generation }: { s
   return (
     <div className="relative h-full">
       <div className="absolute right-2 top-0 z-10 flex gap-2">
-        <button onClick={() => setShowTrace((v) => !v)} className="neu-btn rounded-full px-3 py-1 text-[10.5px] font-bold" data-active={showTrace}>
-          〰 中点変位トレース
+        <button onClick={() => setShowTrace((v) => !v)} className="neu-btn rounded-full px-3 py-1 text-[10.5px] font-medium" data-active={showTrace}>
+          中点変位トレース
         </button>
       </div>
       <svg viewBox={`0 0 ${W} ${H}`} className="h-full w-full" preserveAspectRatio="none" key={generation} onMouseLeave={() => setHover(null)}>
         <defs>
           <linearGradient id="pvLine" x1="0" x2="1">
-            <stop offset="0%" stopColor="#ff4fd8" />
-            <stop offset="50%" stopColor="#b23cff" />
-            <stop offset="100%" stopColor="#39e6ff" />
+            <stop offset="0%" stopColor="#ff5bd6" />
+            <stop offset="50%" stopColor="#8b5cff" />
+            <stop offset="100%" stopColor="#4fe3ff" />
           </linearGradient>
           <linearGradient id="pvArea" x1="0" x2="0" y1="0" y2="1">
-            <stop offset="0%" stopColor="#b23cff" stopOpacity="0.35" />
-            <stop offset="100%" stopColor="#b23cff" stopOpacity="0" />
+            <stop offset="0%" stopColor="#8b5cff" stopOpacity="0.35" />
+            <stop offset="100%" stopColor="#8b5cff" stopOpacity="0" />
           </linearGradient>
           <filter id="glow"><feGaussianBlur stdDeviation="3" result="b" /><feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge></filter>
         </defs>
@@ -64,11 +64,11 @@ function PitchVizImpl({ sequence, result, bpm, keyRoot, scale, generation }: { s
         {result?.form.map((f, i) => (
           <g key={i} className="fade-up" style={{ ['--d' as any]: `${i * 80}ms` }}>
             <rect x={x(f.startBeat)} y={PT} width={x(f.startBeat + f.lengthBeats) - x(f.startBeat)} height={H - PT - PB} fill={i % 2 ? 'rgba(57,230,255,0.035)' : 'rgba(255,79,216,0.03)'} />
-            <text x={x(f.startBeat) + 5} y={H - PB + 18} fontSize={10} fontWeight={800} fill="#9ff3ff" fontFamily="Outfit">{f.label}</text>
+            <text x={x(f.startBeat) + 5} y={H - PB + 18} fontSize={10} fontWeight={800} fill="rgba(236,232,245,.6)" fontFamily="JetBrains Mono">{f.label}</text>
           </g>
         ))}
-        {result && <line x1={x(result.startBeat)} x2={x(result.startBeat)} y1={PT} y2={H - PB} stroke="#39e6ff" strokeOpacity={0.6} strokeDasharray="5 4" />}
-        {result && <text x={x(result.startBeat) + 5} y={PT + 10} fontSize={9.5} fill="#9ff3ff" fontWeight={700}>AI → 続き</text>}
+        {result && <line x1={x(result.startBeat)} x2={x(result.startBeat)} y1={PT} y2={H - PB} stroke="#4fe3ff" strokeOpacity={0.6} strokeDasharray="5 4" />}
+        {result && <text x={x(result.startBeat) + 5} y={PT + 10} fontSize={9.5} fill="rgba(79,227,255,.8)" fontFamily="JetBrains Mono">AI CONTINUATION →</text>}
         {area && <path d={area} fill="url(#pvArea)" className="fade-up" />}
         {showTrace && trace.length > 0 && (
           <g>
@@ -78,7 +78,7 @@ function PitchVizImpl({ sequence, result, bpm, keyRoot, scale, generation }: { s
             ))}
           </g>
         )}
-        {path && <path d={path} fill="none" stroke="url(#pvLine)" strokeWidth={2.6} strokeLinejoin="round" strokeLinecap="round" className="line-draw" filter="url(#glow)" style={{ ['--len' as any]: 6000 }} />}
+        {path && <path d={path} fill="none" stroke="url(#pvLine)" strokeWidth={1.8} strokeLinejoin="round" strokeLinecap="round" className="line-draw" filter="url(#glow)" style={{ ['--len' as any]: 6000 }} />}
         {pts.map((p, i) => (
           <circle
             key={p.n.id}
@@ -87,7 +87,7 @@ function PitchVizImpl({ sequence, result, bpm, keyRoot, scale, generation }: { s
             cx={p.x}
             cy={p.y}
             r={hover === i ? 6 : p.n.tag?.includes('•') ? 4.2 : 3.3}
-            fill={p.n.source === 'ai' ? '#39e6ff' : '#ff4fd8'}
+            fill={p.n.source === 'ai' ? '#4fe3ff' : '#ff5bd6'}
             stroke="#fff"
             strokeWidth={hover === i ? 2 : 1}
             onMouseEnter={() => setHover(i)}
@@ -100,13 +100,13 @@ function PitchVizImpl({ sequence, result, bpm, keyRoot, scale, generation }: { s
             <text x={Math.min(W - 120, pts[hover].x + 8) + 9} y={Math.max(4, pts[hover].y - 38) + 26} fontSize={9} fill="#cbb8ff" fontFamily="JetBrains Mono">{pts[hover].n.startTime.toFixed(2)}s · {pts[hover].n.source === 'ai' ? 'AI' : 'YOU'} {pts[hover].n.tag ?? ''}</text>
           </g>
         )}
-        <line ref={headRef} x1={PL} x2={PL} y1={PT} y2={H - PB} stroke="#39e6ff" strokeWidth={2} style={{ filter: 'drop-shadow(0 0 6px #39e6ff)' }} />
+        <line ref={headRef} x1={PL} x2={PL} y1={PT} y2={H - PB} stroke="#4fe3ff" strokeWidth={2} style={{ filter: 'drop-shadow(0 0 6px #4fe3ff)' }} />
         <text x={W - PR} y={H - 6} fontSize={9} textAnchor="end" fill="rgba(220,200,255,.45)">拍 →</text>
       </svg>
       {showTrace && result && (
         <div className="absolute bottom-9 left-14 flex flex-wrap gap-1.5 rounded-xl bg-black/35 px-2 py-1 backdrop-blur">
           {LEVEL_COLORS.slice(0, 5).map((c, i) => (
-            <span key={i} className="flex items-center gap-1 text-[9px] font-bold text-violet-100/70">
+            <span key={i} className="flex items-center gap-1 text-[9px] font-medium text-[var(--tx-3)]">
               <span className="h-2 w-2 rounded-full" style={{ background: c }} />
               {i === 0 ? '端点' : `L${i}`}
             </span>

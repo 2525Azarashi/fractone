@@ -54,14 +54,14 @@ export const PianoKey = memo(function PianoKey({ midi, on, ai, label, inKey, isT
           onPress(midi)
         }
       }}
-      className={`${black ? 'key-black absolute z-10 rounded-b-[9px]' : 'key-white relative rounded-b-[12px]'} flex touch-none select-none flex-col items-center justify-end outline-none`}
+      className={`${black ? 'key-black absolute z-10 rounded-b-[5px]' : 'key-white relative rounded-b-[7px]'} flex touch-none select-none flex-col items-center justify-end outline-none`}
       style={style}
     >
-      {on && <span className="pop-in pointer-events-none absolute -top-7 left-1/2 -translate-x-1/2 rounded-full bg-white px-1.5 py-0.5 font-mono text-[9px] font-black text-fuchsia-600 shadow-lg">{midiToName(midi)}</span>}
-      {!black && inKey && <span className={`mb-1 h-1.5 w-1.5 rounded-full ${isTonic ? 'bg-fuchsia-500' : 'bg-violet-300/70'}`} />}
-      {black && inKey && <span className="mb-1 h-1 w-1 rounded-full bg-violet-300/70" />}
-      {label && <span className={`mb-1.5 font-mono text-[9px] font-bold ${black ? 'text-violet-200/60' : 'text-violet-500/70'}`}>{label}</span>}
-      {!black && midi % 12 === 0 && <span className="mb-1 text-[8.5px] font-extrabold text-violet-700/70">{midiToName(midi)}</span>}
+      {on && <span className="pop-in num pointer-events-none absolute -top-6 left-1/2 -translate-x-1/2 rounded-md bg-[#0d0a15] px-1.5 py-0.5 text-[9px] font-medium text-white ring-1 ring-white/15">{midiToName(midi)}</span>}
+      {!black && inKey && <span className={`mb-1 h-1.5 w-1.5 rounded-full ${isTonic ? 'bg-[#ff5bd6]' : 'bg-black/15'}`} />}
+      {black && inKey && <span className="mb-1 h-1 w-1 rounded-full bg-black/20" />}
+      {label && <span className={`mb-1.5 font-mono text-[9px] font-medium ${black ? 'text-[var(--tx-3)]' : 'text-black/35'}`}>{label}</span>}
+      {!black && midi % 12 === 0 && <span className="mb-1 text-[8.5px] font-semibold text-black/45">{midiToName(midi)}</span>}
     </button>
   )
 })

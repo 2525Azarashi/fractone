@@ -231,9 +231,9 @@ function PianoRollImpl({ state, dispatch }: { state: State; dispatch: Dispatch<A
       const y = yOf(m)
       const inS = inScale(m, params.key, params.scale)
       rowsEls.push(
-        <rect key={m} x={0} y={y} width={W} height={ROW} fill={isBlack(m) ? 'rgba(8,4,20,0.55)' : inS ? 'rgba(120,80,220,0.07)' : 'rgba(255,255,255,0.012)'} />,
+        <rect key={m} x={0} y={y} width={W} height={ROW} fill={isBlack(m) ? 'rgba(0,0,0,0.28)' : inS ? 'rgba(255,255,255,0.025)' : 'rgba(255,255,255,0.008)'} />,
       )
-      if (((m - params.key) % 12 + 12) % 12 === 0) rowsEls.push(<rect key={`t${m}`} x={0} y={y} width={W} height={ROW} fill="rgba(255,79,216,0.06)" />)
+      if (((m - params.key) % 12 + 12) % 12 === 0) rowsEls.push(<rect key={`t${m}`} x={0} y={y} width={W} height={ROW} fill="rgba(255,91,214,0.045)" />)
       rowsEls.push(<line key={`l${m}`} x1={0} x2={W} y1={y + ROW} y2={y + ROW} stroke={m % 12 === 0 ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.035)'} />)
     }
     const cols = []
@@ -258,21 +258,21 @@ function PianoRollImpl({ state, dispatch }: { state: State; dispatch: Dispatch<A
   return (
     <div className="relative h-full">
       {/* zoom */}
-      <div className="absolute right-3 top-2 z-40 flex items-center gap-1 rounded-full bg-black/40 p-1 backdrop-blur">
-        <button className="h-6 w-6 rounded-full text-sm font-black text-violet-100 hover:bg-white/10" onClick={() => setPpb((z) => Math.max(18, z / 1.2))} aria-label="縮小">−</button>
-        <span className="w-9 text-center font-mono text-[10px] text-violet-200/70">{Math.round(ppb)}px</span>
-        <button className="h-6 w-6 rounded-full text-sm font-black text-violet-100 hover:bg-white/10" onClick={() => setPpb((z) => Math.min(140, z * 1.2))} aria-label="拡大">＋</button>
+      <div className="absolute bottom-3 right-3 z-40 flex items-center gap-0.5 rounded-lg border border-[var(--line)] bg-[#0d0a15]/85 p-0.5 backdrop-blur">
+        <button className="h-6 w-6 rounded-md text-[13px] text-[var(--tx-2)] hover:bg-white/10 hover:text-white" onClick={() => setPpb((z) => Math.max(18, z / 1.2))} aria-label="縮小">−</button>
+        <span className="num w-10 text-center text-[10px] text-[var(--tx-3)]">{Math.round(ppb)}px</span>
+        <button className="h-6 w-6 rounded-md text-[13px] text-[var(--tx-2)] hover:bg-white/10 hover:text-white" onClick={() => setPpb((z) => Math.min(140, z * 1.2))} aria-label="拡大">＋</button>
       </div>
       <div ref={scroller} className="thin-scroll neu-inset h-full overflow-auto rounded-2xl" onPointerDown={() => (follow.current = true)}>
         <div className="relative" style={{ display: 'grid', gridTemplateColumns: `${LABEL_W}px ${W}px`, gridTemplateRows: `${RULER_H}px ${H}px` }}>
           {/* corner */}
-          <div className="sticky left-0 top-0 z-30 flex items-center justify-center bg-[#160d2c] text-[9px] font-bold text-violet-300/60" style={{ boxShadow: '2px 2px 6px rgba(0,0,0,.4)' }}>
+          <div className="eyebrow sticky left-0 top-0 z-30 flex items-center justify-center border-b border-r border-[var(--line)] bg-[#0e0b16] !text-[8px]">
             BAR
           </div>
           {/* ruler */}
-          <div className="sticky top-0 z-20 cursor-pointer bg-[#160d2c]/95 backdrop-blur" onPointerDown={seekRuler} style={{ boxShadow: '0 2px 6px rgba(0,0,0,.35)' }}>
+          <div className="sticky top-0 z-20 cursor-pointer border-b border-[var(--line)] bg-[#0e0b16]/95 backdrop-blur" onPointerDown={seekRuler}>
             {Array.from({ length: totalBars }).map((_, i) => (
-              <div key={i} className="absolute top-0 h-full border-l border-white/10 pl-1 font-mono text-[9.5px] font-semibold text-violet-200/60" style={{ left: i * beatsPerBar * ppb }}>
+              <div key={i} className="num absolute top-0 h-full border-l border-white/10 pl-1.5 pt-1 text-[9.5px] text-[var(--tx-3)]" style={{ left: i * beatsPerBar * ppb }}>
                 {i + 1}
               </div>
             ))}
@@ -280,11 +280,11 @@ function PianoRollImpl({ state, dispatch }: { state: State; dispatch: Dispatch<A
             {form.map((f, i) => (
               <div
                 key={`${generation}-${i}`}
-                className="pop-in absolute bottom-1 flex h-[15px] items-center justify-center overflow-hidden rounded-full text-[9px] font-extrabold text-white"
+                className="pop-in num absolute bottom-1 flex h-[13px] items-center overflow-hidden rounded-[3px] border-l-2 border-white/60 pl-1.5 text-[9px] font-medium text-white/85"
                 style={{
                   left: f.startBeat * ppb + 2,
                   width: f.lengthBeats * ppb - 4,
-                  background: f.transform === 'free' || f.transform === 'cadence' ? 'linear-gradient(90deg,rgba(255,209,102,.45),rgba(255,143,163,.35))' : 'linear-gradient(90deg,rgba(57,230,255,.5),rgba(122,92,255,.45))',
+                  background: f.transform === 'free' || f.transform === 'cadence' ? 'rgba(255,207,122,.14)' : 'rgba(79,227,255,.14)',
                   animationDelay: `${i * 90}ms`,
                 }}
                 title={`${f.label} — ${f.transform}`}
@@ -293,11 +293,11 @@ function PianoRollImpl({ state, dispatch }: { state: State; dispatch: Dispatch<A
               </div>
             ))}
             <div ref={headRulerRef} className="pointer-events-none absolute left-0 top-0 h-full" style={{ willChange: 'transform' }}>
-              <div className="absolute -left-[6px] top-0 h-0 w-0 border-x-[6px] border-t-[9px] border-x-transparent border-t-cyan-300" style={{ filter: 'drop-shadow(0 0 4px #39e6ff)' }} />
+              <div className="absolute -left-[6px] top-0 h-0 w-0 border-x-[6px] border-t-[9px] border-x-transparent border-t-white" />
             </div>
           </div>
           {/* key labels */}
-          <div className="sticky left-0 z-20 bg-[#140b28]" style={{ boxShadow: '3px 0 8px rgba(0,0,0,.4)' }}>
+          <div className="sticky left-0 z-20 border-r border-[var(--line)] bg-[#0e0b16]">
             {Array.from({ length: rows }).map((_, i) => {
               const m = HIGH - i
               const active = state.activeKeys.includes(m) || state.aiKeys.includes(m)
@@ -305,8 +305,8 @@ function PianoRollImpl({ state, dispatch }: { state: State; dispatch: Dispatch<A
                 <div
                   key={m}
                   onPointerDown={() => audio.preview(m, 0.3)}
-                  className={`flex cursor-pointer items-center justify-end pr-1.5 font-mono text-[8.5px] transition-colors duration-100 ${isBlack(m) ? 'bg-[#0d0720] text-violet-300/40' : 'bg-[#1f1440] text-violet-100/70'} ${m % 12 === 0 ? 'font-bold text-fuchsia-200' : ''}`}
-                  style={{ height: ROW, borderBottom: '1px solid rgba(0,0,0,.35)', background: active ? 'linear-gradient(90deg,#ff4fd8,#39e6ff)' : undefined, color: active ? '#fff' : undefined }}
+                  className={`flex cursor-pointer items-center justify-end pr-1.5 font-mono text-[8.5px] transition-colors duration-100 ${isBlack(m) ? 'bg-[#0a0810] text-white/25' : 'bg-[#15111e] text-white/45'} ${m % 12 === 0 ? 'font-semibold !text-white/80' : ''}`}
+                  style={{ height: ROW, borderBottom: '1px solid rgba(0,0,0,.4)', background: active ? 'linear-gradient(90deg,transparent,rgba(255,91,214,.55))' : undefined, color: active ? '#fff' : undefined }}
                 >
                   {m % 12 === 0 || !isBlack(m) ? midiToName(m) : ''}
                 </div>
@@ -328,20 +328,20 @@ function PianoRollImpl({ state, dispatch }: { state: State; dispatch: Dispatch<A
             >
               <defs>
                 <linearGradient id="gUser" x1="0" x2="1">
-                  <stop offset="0%" stopColor="#ff4fd8" />
-                  <stop offset="100%" stopColor="#b23cff" />
+                  <stop offset="0%" stopColor="#ff5bd6" />
+                  <stop offset="100%" stopColor="#c04bff" />
                 </linearGradient>
                 <linearGradient id="gAi" x1="0" x2="1">
-                  <stop offset="0%" stopColor="#39e6ff" />
-                  <stop offset="100%" stopColor="#7a5cff" />
+                  <stop offset="0%" stopColor="#4fe3ff" />
+                  <stop offset="100%" stopColor="#6b7bff" />
                 </linearGradient>
                 <pattern id="aiHatch" width="10" height="10" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
-                  <line x1="0" y1="0" x2="0" y2="10" stroke="rgba(57,230,255,0.06)" strokeWidth="4" />
+                  <line x1="0" y1="0" x2="0" y2="10" stroke="rgba(79,227,255,0.035)" strokeWidth="4" />
                 </pattern>
               </defs>
               {grid}
               {aiStart !== null && <rect x={aiStart} y={0} width={Math.max(0, W - aiStart)} height={H} fill="url(#aiHatch)" pointerEvents="none" />}
-              {aiStart !== null && <line x1={aiStart} x2={aiStart} y1={0} y2={H} stroke="#39e6ff" strokeDasharray="4 4" strokeOpacity={0.6} pointerEvents="none" />}
+              {aiStart !== null && <line x1={aiStart} x2={aiStart} y1={0} y2={H} stroke="#4fe3ff" strokeDasharray="2 4" strokeOpacity={0.5} pointerEvents="none" />}
               {sequence.map((n, idx) => {
                 const x = (n.startTime / spb) * ppb
                 const w = Math.max(6, (n.duration / spb) * ppb - 1)
@@ -367,19 +367,19 @@ function PianoRollImpl({ state, dispatch }: { state: State; dispatch: Dispatch<A
                       y={y}
                       width={w}
                       height={ROW - 2}
-                      rx={4.5}
+                      rx={3}
                       fill={ai ? 'url(#gAi)' : 'url(#gUser)'}
                       fillOpacity={0.55 + vel * 0.45}
-                      stroke={sel ? '#fff' : 'rgba(255,255,255,0.25)'}
-                      strokeWidth={sel ? 2 : 0.8}
-                      style={{ filter: sel ? 'drop-shadow(0 0 6px rgba(255,255,255,.7))' : ai ? 'drop-shadow(0 0 4px rgba(57,230,255,.45))' : 'drop-shadow(0 0 4px rgba(255,79,216,.45))' }}
+                      stroke={sel ? '#fff' : 'rgba(255,255,255,0.18)'}
+                      strokeWidth={sel ? 1.5 : 0.6}
+                      style={{ filter: sel ? 'drop-shadow(0 0 5px rgba(255,255,255,.55))' : ai ? 'drop-shadow(0 2px 6px rgba(79,227,255,.25))' : 'drop-shadow(0 2px 6px rgba(255,91,214,.25))' }}
                       onPointerDown={(e) => onNoteDown(e, n, 'move')}
                     />
                     {/* ベロシティ表示 */}
                     <rect x={x + 3} y={y + ROW - 5} width={Math.max(2, (w - 6) * vel)} height={1.5} rx={1} fill="rgba(255,255,255,.65)" pointerEvents="none" />
                     {motif && <circle cx={x + 5} cy={y + (ROW - 2) / 2 - 1} r={2} fill="#fff" pointerEvents="none" />}
                     {w > 34 && (
-                      <text x={x + (motif ? 10 : 4)} y={y + 9.5} fontSize={8.5} fontWeight={800} fill="rgba(255,255,255,.92)" pointerEvents="none" fontFamily="JetBrains Mono">
+                      <text x={x + (motif ? 10 : 4)} y={y + 9.5} fontSize={8} fontWeight={500} fill="rgba(255,255,255,.9)" pointerEvents="none" fontFamily="JetBrains Mono">
                         {midiToName(n.midiNoteNumber)}
                       </text>
                     )}
@@ -392,16 +392,16 @@ function PianoRollImpl({ state, dispatch }: { state: State; dispatch: Dispatch<A
             </svg>
             {/* playhead */}
             <div ref={headRef} className="pointer-events-none absolute left-0 top-0 h-full" style={{ willChange: 'transform' }}>
-              <div className="absolute -left-px top-0 h-full w-[2px] bg-gradient-to-b from-cyan-200 via-cyan-300 to-fuchsia-400" style={{ boxShadow: '0 0 12px #39e6ff, 0 0 2px #fff' }} />
+              <div className="absolute -left-px top-0 h-full w-px bg-white" style={{ boxShadow: '0 0 10px rgba(79,227,255,.9), 0 0 2px #fff' }} />
             </div>
           </div>
         </div>
       </div>
       {sequence.length === 0 && (
         <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center text-center">
-          <div className="float text-5xl">🎹</div>
-          <p className="mt-3 text-sm font-bold text-violet-100/80">鍵盤を弾くか、グリッドをダブルクリックして音符を置こう</p>
-          <p className="mt-1 text-[11px] text-violet-200/50">● 録音ボタンでリアルタイム入力もできるよ</p>
+          <p className="eyebrow">Empty sequence</p>
+          <p className="mt-2 text-[14px] font-medium text-[var(--tx)]">鍵盤を弾くか、グリッドをダブルクリックして音符を置く</p>
+          <p className="mt-1 text-[11.5px] text-[var(--tx-3)]">録音ボタン（R）でリアルタイム入力もできます</p>
         </div>
       )}
     </div>

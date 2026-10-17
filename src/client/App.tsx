@@ -17,14 +17,16 @@ import { PitchViz } from './components/PitchViz'
 import { RhythmViz } from './components/RhythmViz'
 import { AudioPanel } from './components/AudioPanel'
 import { Controls } from './components/Controls'
-import { Chip, KineticText } from './components/ui'
+import { KineticText, RiseText, Toggle } from './components/ui'
+import { ComposeDock } from './components/ComposeDock'
+import { IArrowR, IBars, IChevL, IChevR, IRoll, ISliders, IWave } from './components/icons'
 import { setIdlePosition } from './hooks/useTransport'
 
-const TABS: { id: Tab; label: string; icon: string }[] = [
-  { id: 'roll', label: 'ピアノロール', icon: '🎹' },
-  { id: 'pitch', label: 'ピッチ可視化', icon: '〰' },
-  { id: 'rhythm', label: 'リズム可視化', icon: '🥁' },
-  { id: 'audio', label: 'オーディオ設定', icon: '🎚' },
+const TABS: { id: Tab; label: string; icon: (p: { size?: number; className?: string }) => JSX.Element }[] = [
+  { id: 'roll', label: 'ピアノロール', icon: IRoll },
+  { id: 'pitch', label: 'ピッチ可視化', icon: IWave },
+  { id: 'rhythm', label: 'リズム可視化', icon: IBars },
+  { id: 'audio', label: 'オーディオ設定', icon: ISliders },
 ]
 
 interface Toast { id: number; text: string; tone: 'mag' | 'cy' | 'mint' }
@@ -35,6 +37,7 @@ export default function App() {
   stateRef.current = state
   const [toasts, setToasts] = useState<Toast[]>([])
   const [splash, setSplash] = useState(true)
+  const [help, setHelp] = useState(false)
   const [burst, setBurst] = useState<{ depth: number; mode: string } | null>(null)
   const pressed = useRef(new Map<number, { t: number; vel: number }>())
   const lastMode = useRef<'continue' | 'new'>('continue')
@@ -125,7 +128,7 @@ export default function App() {
       setIdlePosition(pos)
       return
     }
-    if (!s.sequence.length) return toast('まずは音符を置いてみよう 🎹', 'cy')
+    if (!s.sequence.length) return toast('まず音符を置いてください', 'cy')
     const end = s.sequence.reduce((m, n) => Math.max(m, n.startTime + n.duration), 0)
     const from = s.cursor >= end - 0.05 ? 0 : s.cursor
     audio.play(s.sequence, from, { bpm: s.params.bpm, beatsPerBar: TIME_SIGS[s.params.timeSig].beatsPerBar, loop: s.loop })
@@ -143,7 +146,7 @@ export default function App() {
     // カウントインなしで、カーソル位置から既存音符を流しつつ録音
     audio.startClock(s.cursor, { bpm: s.params.bpm, beatsPerBar: TIME_SIGS[s.params.timeSig].beatsPerBar, seq: s.sequence })
     dispatch({ type: 'status', status: 'recording', message: '録音中' })
-    toast('● 録音開始 — 鍵盤を弾いてね', 'mag')
+    toast('録音開始 — 鍵盤を弾いてください', 'mag')
   }, [stopAll, toast])
 
   // ---------------- 作曲 (中点変位法) ----------------
@@ -154,7 +157,7 @@ export default function App() {
     const params = { ...s.params, seed: seedOverride ?? s.params.seed }
     if (seedOverride !== undefined) dispatch({ type: 'params', patch: { seed: seedOverride } })
     const userSeq = s.sequence.filter((n) => n.source !== 'ai')
-    if (mode === 'continue' && userSeq.length < 2) return toast('続きを作るには2音以上入力してね', 'cy')
+    if (mode === 'continue' && userSeq.length < 2) return toast('続きを作るには2音以上入力してください', 'cy')
     dispatch({ type: 'status', status: 'composing' })
     setBurst({ depth: params.depth, mode })
     const t0 = performance.now()
@@ -179,7 +182,7 @@ export default function App() {
     dispatch({ type: 'setSequence', seq: next })
     dispatch({ type: 'result', result })
     dispatch({ type: 'status', status: 'done' })
-    toast(`✨ ${result.notes.length} 音符を作曲しました`, 'cy')
+    toast(`${result.notes.length} 音符を作曲しました`, 'cy')
     // 生成部分の頭から試聴
     const from = mode === 'continue' ? Math.max(0, result.startBeat * (60 / params.bpm) - (60 / params.bpm) * TIME_SIGS[params.timeSig].beatsPerBar) : 0
     dispatch({ type: 'cursor', t: from })
@@ -206,14 +209,14 @@ export default function App() {
         duration: Math.max(g, Math.round(n.duration / spbN / g) * g) * spbN,
       })),
     })
-    toast(`⊞ ${target.length} 音をクオンタイズ`, 'mint')
+    toast(`${target.length} 音をクオンタイズ`, 'mint')
   }, [toast])
 
   const acceptAi = useCallback(() => {
     const s = stateRef.current
     dispatch({ type: 'setSequence', seq: s.sequence.map((n) => (n.source === 'ai' ? { ...n, source: 'user' as const, id: uid('u') } : n)) })
     dispatch({ type: 'result', result: null })
-    toast('✔ AI の音符をあなたのメロディに採用しました。さらに続きを作れます', 'mint')
+    toast('AI の音符を採用しました — さらに続きを作れます', 'mint')
   }, [toast])
 
   const save = useCallback(() => {
@@ -226,7 +229,7 @@ export default function App() {
     a.download = `fractone_${NOTE_NAMES[s.params.key]}${s.params.scale}_${s.params.seed}.mid`
     a.click()
     setTimeout(() => URL.revokeObjectURL(a.href), 2000)
-    toast('💾 ブラウザに保存 & MIDI をダウンロードしました', 'mint')
+    toast('MIDI をダウンロードしました', 'mint')
   }, [toast])
 
   const clearAll = useCallback(() => {
@@ -338,47 +341,63 @@ export default function App() {
 
   return (
     <div className="relative min-h-screen overflow-x-hidden">
-      <div className="blob" style={{ width: 420, height: 420, left: -120, top: 80, background: '#b23cff' }} />
-      <div className="blob" style={{ width: 360, height: 360, right: -80, top: 260, background: '#39e6ff', animationDelay: '-6s' }} />
-      <div className="blob" style={{ width: 380, height: 380, left: '40%', bottom: -160, background: '#ff4fd8', animationDelay: '-11s' }} />
+      <div className="relative z-10 mx-auto flex max-w-[1720px] flex-col gap-4 p-3 md:p-5">
+        <Header
+          state={state}
+          onHelp={() => setHelp(true)}
+          onToggleMute={() => {
+            if (state.audio.volume > 0) { volBeforeMute.current = state.audio.volume; dispatch({ type: 'audio', patch: { volume: 0 } }) }
+            else dispatch({ type: 'audio', patch: { volume: volBeforeMute.current || 0.75 } })
+          }}
+        />
 
-      <div className="relative z-10 mx-auto flex max-w-[1680px] flex-col gap-3 p-3 md:p-4">
-        <Header state={state} onToggleMute={() => {
-          if (state.audio.volume > 0) { volBeforeMute.current = state.audio.volume; dispatch({ type: 'audio', patch: { volume: 0 } }) }
-          else dispatch({ type: 'audio', patch: { volume: volBeforeMute.current || 0.75 } })
-        }} />
-
-        <main className="grid grid-cols-1 gap-3 lg:grid-cols-[292px_minmax(0,1fr)_316px]">
-          {/* ---- 左: パラメータ ---- */}
+        <main className="grid grid-cols-1 gap-3 lg:grid-cols-[280px_minmax(0,1fr)_312px]">
+          {/* ---- 左: 詳細パラメータ ---- */}
           <aside id="param-panel" className="order-2 min-w-0 lg:order-1">
-            <ParamPanel state={state} dispatch={dispatch} busy={busy} onGenerate={() => runCompose('new')} onContinue={() => runCompose('continue')} onPlay={togglePlay} onSave={save} />
+            <ParamPanel state={state} dispatch={dispatch} onSave={save} />
           </aside>
 
-          {/* ---- 中央: 可視化 ---- */}
-          <section id="visual-panel" className="neu fade-up order-1 flex min-w-0 min-h-[640px] flex-col gap-3 rounded-[26px] p-3 md:p-4 lg:order-2 lg:h-[calc(100vh-120px)] lg:min-h-[720px]" style={{ ['--d' as any]: '40ms' }}>
-            <div className="flex flex-wrap items-center gap-2">
-              <nav className="neu-inset relative flex rounded-2xl p-1" role="tablist">
-                <span className="tab-indicator absolute top-1 h-[calc(100%-8px)] rounded-xl grad-bg shadow-[0_6px_18px_rgba(255,79,216,.4)]" style={{ left: ind.left, width: ind.width }} />
-                {TABS.map((t, i) => (
-                  <button
-                    key={t.id}
-                    ref={(el) => { tabRefs.current[i] = el }}
-                    role="tab"
-                    aria-selected={state.tab === t.id}
-                    onClick={() => dispatch({ type: 'tab', tab: t.id })}
-                    className={`relative z-10 flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-[12px] font-extrabold transition-colors duration-300 ${state.tab === t.id ? 'text-white' : 'text-violet-200/60 hover:text-white'}`}
-                  >
-                    <span>{t.icon}</span>
-                    <span className="hidden sm:inline">{t.label}</span><span className="sr-only sm:hidden">{t.label}</span>
-                  </button>
-                ))}
+          {/* ---- 中央: 作曲ドック + 可視化 + 鍵盤 ---- */}
+          <section id="visual-panel" className="neu fade-up order-1 flex min-h-[660px] min-w-0 flex-col gap-3 rounded-2xl p-3 md:p-4 lg:order-2 lg:h-[calc(100vh-108px)] lg:min-h-[740px]" style={{ ['--d' as any]: '40ms' }}>
+            {/* タブ */}
+            <div className="flex items-center gap-3">
+              <nav className="relative flex rounded-xl border border-[var(--line)] bg-black/25 p-1" role="tablist">
+                <span className="tab-indicator absolute top-1 h-[calc(100%-8px)] rounded-lg border border-[var(--line-2)] bg-white/[0.07]" style={{ left: ind.left, width: ind.width }} />
+                {TABS.map((t, i) => {
+                  const Icon = t.icon
+                  const on = state.tab === t.id
+                  return (
+                    <button
+                      key={t.id}
+                      ref={(el) => { tabRefs.current[i] = el }}
+                      role="tab"
+                      aria-selected={on}
+                      aria-label={t.label}
+                      onClick={() => dispatch({ type: 'tab', tab: t.id })}
+                      className={`relative z-10 flex items-center gap-2 rounded-lg px-3 py-1.5 text-[12px] font-medium transition-colors duration-300 ${on ? 'text-white' : 'text-[var(--tx-3)] hover:text-[var(--tx)]'}`}
+                    >
+                      <Icon size={14} className={on ? 'text-fuchsia-300' : ''} />
+                      <span className="hidden sm:inline">{t.label}</span>
+                    </button>
+                  )
+                })}
               </nav>
-              <div className="ml-auto flex flex-wrap items-center gap-1.5">
-                <Chip tone="cy"><span key={analysis.noteCount} className="kt-swap inline-block">{analysis.noteCount}</span> notes</Chip>
-                <Chip tone="mag">{NOTE_NAMES[state.params.key]} {SCALES[state.params.scale].label}</Chip>
-                <Chip tone="sun">{state.params.timeSig}</Chip>
+              <div className="ml-auto hidden items-center gap-4 text-[11px] text-[var(--tx-3)] md:flex">
+                <span><span key={analysis.noteCount} className="kt-swap num inline-block text-white">{analysis.noteCount}</span> notes</span>
+                <span className="flex items-center gap-1.5"><i className="h-1.5 w-1.5 rounded-full bg-[#ff5bd6]" />You</span>
+                <span className="flex items-center gap-1.5"><i className="h-1.5 w-1.5 rounded-full bg-[#4fe3ff]" />AI</span>
               </div>
             </div>
+
+            {/* 作曲ドック — 生成ボタンを音符のすぐ上に */}
+            <ComposeDock
+              state={state}
+              dispatch={dispatch}
+              busy={busy}
+              onContinue={() => runCompose('continue')}
+              onGenerate={() => runCompose('new')}
+              onReroll={() => runCompose(lastMode.current, Math.floor(Math.random() * 99999))}
+            />
 
             <Controls
               state={state}
@@ -389,7 +408,6 @@ export default function App() {
               onDelete={deleteSelected}
               onQuantize={quantize}
               onAcceptAi={acceptAi}
-              onReroll={() => runCompose(lastMode.current, Math.floor(Math.random() * 99999))}
               onClear={clearAll}
             />
 
@@ -403,20 +421,21 @@ export default function App() {
               {burst && <ComposeBurst depth={burst.depth} mode={burst.mode} />}
             </div>
 
-            {/* ---- 鍵盤 ---- */}
-            <div className="neu-inset rounded-[20px] p-2 pt-8">
-              <div className="-mt-6 mb-1 flex items-center justify-between px-1 text-[10px] font-bold text-violet-200/60">
-                <div className="flex items-center gap-1.5">
-                  <button className="neu-btn h-6 rounded-lg px-2" onClick={() => dispatch({ type: 'octave', delta: -1 })} aria-label="オクターブ下げる (Z)">◀ Z</button>
-                  <span className="font-mono text-violet-100">Oct <span key={state.baseOctave} className="kt-swap inline-block text-fuchsia-300">{state.baseOctave}</span></span>
-                  <button className="neu-btn h-6 rounded-lg px-2" onClick={() => dispatch({ type: 'octave', delta: 1 })} aria-label="オクターブ上げる (X)">X ▶</button>
+            {/* 鍵盤 */}
+            <div className="rounded-2xl border border-[var(--line)] bg-black/30 p-2">
+              <div className="mb-2 flex items-center justify-between px-1 text-[10.5px] text-[var(--tx-3)]">
+                <div className="flex items-center gap-1">
+                  <button className="neu-btn grid h-6 w-6 place-items-center rounded-md" onClick={() => dispatch({ type: 'octave', delta: -1 })} aria-label="オクターブ下げる (Z)" title="Z"><IChevL size={12} /></button>
+                  <span className="num w-12 text-center text-[var(--tx-2)]">Oct <span key={state.baseOctave} className="kt-swap inline-block text-white">{state.baseOctave}</span></span>
+                  <button className="neu-btn grid h-6 w-6 place-items-center rounded-md" onClick={() => dispatch({ type: 'octave', delta: 1 })} aria-label="オクターブ上げる (X)" title="X"><IChevR size={12} /></button>
                 </div>
-                <span className="hidden sm:inline">● = スケール内の音 / <span className="text-fuchsia-300">●</span> = 主音</span>
-                <button className="flex items-center gap-1" onClick={() => dispatch({ type: 'toggle', key: 'quantizeRec' })}>
-                  <span className={`h-3 w-3 rounded-[4px] ${state.quantizeRec ? 'grad-bg' : 'bg-white/10'}`} />録音時クオンタイズ
-                </button>
+                <span className="hidden items-center gap-3 sm:flex">
+                  <span className="flex items-center gap-1.5"><i className="h-1 w-1 rounded-full bg-white/50" />スケール音</span>
+                  <span className="flex items-center gap-1.5"><i className="h-1 w-1 rounded-full bg-[#ff5bd6]" />主音</span>
+                </span>
+                <Toggle on={state.quantizeRec} onChange={() => dispatch({ type: 'toggle', key: 'quantizeRec' })} label="Rec Quantize" />
               </div>
-              <div className="h-[118px] sm:h-[132px]">
+              <div className="h-[112px] sm:h-[124px]">
                 <PianoUI low={low} high={high} activeKeys={state.activeKeys} aiKeys={state.aiKeys} baseOctave={state.baseOctave} keyRoot={state.params.key} scale={state.params.scale} onPress={press} onRelease={release} />
               </div>
             </div>
@@ -428,25 +447,24 @@ export default function App() {
           </aside>
         </main>
 
-        <footer className="flex flex-wrap items-center justify-between gap-2 px-2 pb-2 text-[10.5px] text-violet-200/45">
-          <span>FracTone · 中点変位法 × モチーフ展開による作曲学習シーケンサー</span>
-          <span className="flex items-center gap-1.5">
-            Built with <b className="grad-text font-extrabold">Hono</b> · React · Web Audio · Cloudflare Pages
-            <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-300" />
-          </span>
+        <footer className="flex flex-wrap items-center justify-between gap-2 border-t border-[var(--line)] px-1 pt-3 text-[11px] text-[var(--tx-3)]">
+          <span>FracTone — Midpoint displacement × motif development</span>
+          <span className="num">Built with <span className="text-[var(--tx)]">Hono</span> · React · Web Audio · Cloudflare</span>
         </footer>
       </div>
 
       {/* toasts */}
-      <div className="pointer-events-none fixed bottom-4 left-1/2 z-50 flex -translate-x-1/2 flex-col items-center gap-2">
+      <div className="pointer-events-none fixed bottom-5 left-1/2 z-50 flex -translate-x-1/2 flex-col items-center gap-2">
         {toasts.map((t) => (
-          <div key={t.id} className={`pop-in rounded-full border px-4 py-2 text-[12px] font-bold text-white shadow-2xl backdrop-blur-xl ${t.tone === 'cy' ? 'border-cyan-300/30 bg-cyan-500/20' : t.tone === 'mint' ? 'border-emerald-300/30 bg-emerald-500/20' : 'border-fuchsia-300/30 bg-fuchsia-500/20'}`}>
+          <div key={t.id} className="pop-in flex items-center gap-2.5 rounded-xl border border-[var(--line-2)] bg-[#14101e]/90 px-4 py-2.5 text-[12px] font-medium text-white shadow-2xl backdrop-blur-xl">
+            <i className={`h-1.5 w-1.5 rounded-full ${t.tone === 'cy' ? 'bg-[#4fe3ff]' : t.tone === 'mint' ? 'bg-emerald-300' : 'bg-[#ff5bd6]'}`} />
             {t.text}
           </div>
         ))}
       </div>
 
-      {splash && <Splash onStart={() => { audio.ensure(); [60, 64, 67, 72].forEach((m, i) => setTimeout(() => audio.preview(m, 0.4, 0.6), i * 110)); setSplash(false) }} />}
+      {help && <HelpSheet onClose={() => setHelp(false)} />}
+      {splash && <Splash onStart={() => { audio.ensure(); [60, 64, 67, 72].forEach((m, i) => setTimeout(() => audio.preview(m, 0.4, 0.55), i * 110)); setSplash(false) }} />}
     </div>
   )
 }
@@ -460,56 +478,111 @@ function ComposeBurst({ depth, mode }: { depth: number; mode: string }) {
   }, [depth])
   const W = 520, H = 120
   const n = 1 << lv
-  const rnd = (i: number) => Math.sin(i * 12.9898 + lv * 3.1) * 43758.5453 % 1
-  const pts = Array.from({ length: n + 1 }, (_, i) => [(i / n) * W, H / 2 + (i === 0 || i === n ? 0 : rnd(i) * 40 / Math.sqrt(lv || 1))])
+  const rnd = (i: number) => (Math.sin(i * 12.9898 + 7.1) * 43758.5453) % 1
+  const pts = Array.from({ length: n + 1 }, (_, i) => [(i / n) * W, H / 2 + (i === 0 || i === n ? 0 : rnd(i * (64 / n)) * 42)])
   return (
-    <div className="absolute inset-0 z-30 flex flex-col items-center justify-center rounded-2xl bg-[#0b0618]/75 backdrop-blur-md">
-      <p className="font-display text-[11px] font-bold tracking-[0.4em] text-cyan-200/70">{mode === 'continue' ? 'CONTINUING YOUR MELODY' : 'COMPOSING FROM SCRATCH'}</p>
-      <h2 className="mt-1 font-display text-4xl font-black md:text-5xl">
-        <KineticText key={lv} text={`Lv.${lv}`} className="grad-text" stagger={60} />
+    <div className="absolute inset-0 z-30 flex flex-col items-center justify-center rounded-2xl bg-[#0a0812]/82 backdrop-blur-md">
+      <p className="eyebrow">{mode === 'continue' ? 'Continuing your melody' : 'Composing from a new motif'}</p>
+      <h2 className="mt-3 flex items-baseline gap-3 font-display text-white">
+        <span className="text-[13px] text-[var(--tx-3)]">LEVEL</span>
+        <span className="text-6xl font-semibold tracking-tight"><KineticText key={lv} text={String(lv).padStart(2, '0')} stagger={60} /></span>
+        <span className="text-[13px] text-[var(--tx-3)]">/ {String(depth).padStart(2, '0')}</span>
       </h2>
-      <p className="mt-1 text-[12px] font-bold text-violet-100/80"><KineticText key={`t${lv}`} text={lv === 0 ? '両端の音を決定…' : `${n} 区間に分割して中点を変位`} /></p>
-      <svg viewBox={`0 0 ${W} ${H}`} className="mt-4 w-[min(520px,80%)]">
-        <defs><linearGradient id="bl" x1="0" x2="1"><stop offset="0" stopColor="#ff4fd8" /><stop offset="1" stopColor="#39e6ff" /></linearGradient></defs>
-        <path d={pts.map((p, i) => `${i ? 'L' : 'M'}${p[0]},${p[1]}`).join(' ')} fill="none" stroke="url(#bl)" strokeWidth={3} strokeLinejoin="round" style={{ transition: 'd .2s' }} />
-        {pts.map((p, i) => <circle key={`${lv}-${i}`} className="dot-pop" cx={p[0]} cy={p[1]} r={lv > 4 ? 2 : 4} fill="#fff" />)}
+      <p className="mt-2 text-[12px] text-[var(--tx-2)]"><KineticText key={`t${lv}`} text={lv === 0 ? '両端の音を決定' : `${n} 区間 — 中点を変位`} stagger={20} /></p>
+      <svg viewBox={`0 0 ${W} ${H}`} className="mt-6 w-[min(520px,80%)] overflow-visible">
+        <defs><linearGradient id="bl" x1="0" x2="1"><stop offset="0" stopColor="#ff5bd6" /><stop offset=".6" stopColor="#8b5cff" /><stop offset="1" stopColor="#4fe3ff" /></linearGradient></defs>
+        <line x1={0} x2={W} y1={H / 2} y2={H / 2} stroke="rgba(255,255,255,.08)" strokeDasharray="2 4" />
+        <path d={pts.map((p, i) => `${i ? 'L' : 'M'}${p[0]},${p[1]}`).join(' ')} fill="none" stroke="url(#bl)" strokeWidth={1.6} strokeLinejoin="round" style={{ transition: 'd .25s var(--ease)' }} />
+        {pts.map((p, i) => <circle key={`${lv}-${i}`} className="dot-pop" cx={p[0]} cy={p[1]} r={lv > 4 ? 1.6 : 3} fill="#0a0812" stroke="#fff" strokeWidth={1.2} />)}
       </svg>
-      <div className="mt-4 flex gap-1.5">
+      <div className="mt-6 flex gap-1">
         {Array.from({ length: depth + 1 }).map((_, i) => (
-          <span key={i} className={`h-1.5 w-6 rounded-full transition-all duration-300 ${i <= lv ? 'grad-bg' : 'bg-white/10'}`} />
+          <span key={i} className={`h-[3px] w-7 rounded-full transition-all duration-300 ${i <= lv ? 'bg-white' : 'bg-white/10'}`} />
         ))}
       </div>
     </div>
   )
 }
 
-/** スプラッシュ: Kinetic Typography + AudioContext のアンロック */
-function Splash({ onStart }: { onStart: () => void }) {
-  const [leaving, setLeaving] = useState(false)
+/** ショートカット一覧 */
+function HelpSheet({ onClose }: { onClose: () => void }) {
+  useEffect(() => {
+    const on = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
+    window.addEventListener('keydown', on)
+    return () => window.removeEventListener('keydown', on)
+  }, [onClose])
+  const rows: [string, string][] = [
+    ['A – ;', '鍵盤を演奏 (白鍵)'], ['W E T Y U O P', '黒鍵'], ['Z / X', 'オクターブ ↓ / ↑'],
+    ['Space', '再生 / 一時停止'], ['R', '録音'], ['Enter', '停止して先頭へ'],
+    ['Delete', '選択した音符を削除'], ['↑ ↓ ← →', '選択を移動 (Shift で 1oct)'], ['Ctrl + Z', '元に戻す'],
+    ['Double click', '音符を追加'], ['Drag', '移動 / 右端で長さ変更'], ['Ctrl + Wheel', 'ズーム'],
+  ]
   return (
-    <div className={`fixed inset-0 z-[100] flex flex-col items-center justify-center bg-[#0b0618]/92 backdrop-blur-xl transition-all duration-500 ${leaving ? 'pointer-events-none scale-110 opacity-0' : ''}`}>
-      <div className="blob" style={{ width: 380, height: 380, left: '30%', top: '20%', background: '#b23cff', opacity: 0.5 }} />
-      <div className="blob" style={{ width: 300, height: 300, left: '50%', top: '40%', background: '#39e6ff', opacity: 0.35, animationDelay: '-5s' }} />
-      <div className="relative text-center">
-        <div className="mb-4 flex justify-center gap-1.5">
-          {[0, 1, 2, 3, 4, 5, 6, 7].map((i) => (
-            <span key={i} className="bar-grow w-2 rounded-full grad-bg" style={{ height: 14 + Math.abs(Math.sin(i * 1.3)) * 40, ['--d' as any]: `${i * 70}ms` }} />
+    <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm" onClick={onClose}>
+      <div className="neu pop-in w-full max-w-md rounded-2xl p-6" onClick={(e) => e.stopPropagation()}>
+        <p className="eyebrow">Shortcuts</p>
+        <h3 className="mt-1 text-[18px] font-semibold text-white">操作ガイド</h3>
+        <div className="mt-4 divide-y divide-[var(--line)]">
+          {rows.map(([k, v], i) => (
+            <div key={k} className="fade-up flex items-center justify-between py-2" style={{ ['--d' as any]: `${i * 25}ms` }}>
+              <span className="text-[12.5px] text-[var(--tx-2)]">{v}</span>
+              <kbd className="num rounded-md border border-[var(--line-2)] bg-white/[0.04] px-2 py-0.5 text-[11px] text-white">{k}</kbd>
+            </div>
           ))}
         </div>
-        <h1 className="font-display text-6xl font-black tracking-tight md:text-8xl">
-          <KineticText text="Frac" className="grad-text" stagger={70} />
-          <KineticText text="Tone" className="text-white" stagger={70} />
+        <button onClick={onClose} className="btn-ghost mt-5 w-full rounded-xl py-2.5 text-[12.5px] font-medium">閉じる</button>
+      </div>
+    </div>
+  )
+}
+
+/** スプラッシュ: エディトリアルな Kinetic Typography + AudioContext のアンロック */
+function Splash({ onStart }: { onStart: () => void }) {
+  const [leaving, setLeaving] = useState(false)
+  const curve = useMemo(() => {
+    const n = 64
+    let d = ''
+    for (let i = 0; i <= n; i++) {
+      const x = (i / n) * 1200
+      const y = 470 + Math.sin(i * 0.31) * 46 + Math.sin(i * 0.93) * 20 + Math.sin(i * 2.7) * 7
+      d += `${i ? 'L' : 'M'}${x.toFixed(1)},${y.toFixed(1)}`
+    }
+    return d
+  }, [])
+  return (
+    <div className={`fixed inset-0 z-[100] flex flex-col justify-between bg-[#0a0812] p-6 transition-all duration-700 md:p-12 ${leaving ? 'pointer-events-none opacity-0' : ''}`} style={{ transitionTimingFunction: 'var(--ease)' }}>
+      <svg viewBox="0 0 1200 600" preserveAspectRatio="none" className="pointer-events-none absolute inset-0 h-full w-full opacity-45">
+        <defs><linearGradient id="sp" x1="0" x2="1"><stop offset="0" stopColor="#ff5bd6" /><stop offset=".6" stopColor="#8b5cff" /><stop offset="1" stopColor="#4fe3ff" /></linearGradient></defs>
+        <path d={curve} fill="none" stroke="url(#sp)" strokeWidth={1.2} className="line-draw" style={{ ['--len' as any]: 2400 }} vectorEffect="non-scaling-stroke" />
+      </svg>
+      <div className="relative flex items-center justify-between">
+        <span className="eyebrow">FracTone — v1.0</span>
+        <span className="eyebrow hidden sm:inline">Midpoint · Motif · Analysis</span>
+      </div>
+      <div className="relative">
+        <p className="eyebrow mb-4"><RiseText>A fractal sequencer for learning composition</RiseText></p>
+        <h1 className="font-display text-[clamp(56px,12vw,168px)] font-semibold leading-[0.88] tracking-[-0.045em] text-white">
+          <RiseText delay={120}>Frac</RiseText>
+          <RiseText delay={220} className="grad-text">Tone</RiseText>
         </h1>
-        <p className="mt-3 text-[14px] font-bold text-violet-100/85 md:text-base">
-          <KineticText text="あなたのメロディの「続き」を、フラクタルで。" stagger={28} />
+        <p className="mt-6 max-w-md text-[15px] leading-relaxed text-[var(--tx-2)]">
+          <RiseText delay={420}>あなたが弾いたメロディの続きを、</RiseText><br />
+          <RiseText delay={500}>中点変位法とモチーフ展開で作曲します。</RiseText>
         </p>
-        <p className="fade-up mt-2 text-[11.5px] text-violet-200/55" style={{ ['--d' as any]: '900ms' }}>中点変位法 × モチーフ展開 × 楽典分析 — DTM をあそびながら学ぼう</p>
+      </div>
+      <div className="relative flex flex-wrap items-end justify-between gap-6">
+        <div className="fade-up grid grid-cols-3 gap-8 text-[var(--tx-3)]" style={{ ['--d' as any]: '700ms' }}>
+          {[['01', '弾く'], ['02', '続きを作曲'], ['03', '分析して学ぶ']].map(([n, t]) => (
+            <div key={n}><p className="num text-[10px]">{n}</p><p className="mt-1 text-[12.5px] text-[var(--tx)]">{t}</p></div>
+          ))}
+        </div>
         <button
-          onClick={() => { setLeaving(true); setTimeout(onStart, 380) }}
-          className="btn-generate fade-up mt-8 rounded-full px-10 py-4 text-[15px] font-extrabold text-white"
-          style={{ ['--d' as any]: '1100ms' }}
+          onClick={() => { setLeaving(true); setTimeout(onStart, 420) }}
+          className="btn-primary fade-up group flex items-center gap-3 rounded-full py-3.5 pl-7 pr-5 text-[14px] font-medium"
+          style={{ ['--d' as any]: '850ms' }}
         >
-          ♪ タップしてはじめる
+          はじめる
+          <span className="grid h-7 w-7 place-items-center rounded-full bg-white/15 transition-transform duration-300 group-hover:translate-x-1"><IArrowR size={14} /></span>
         </button>
       </div>
     </div>
