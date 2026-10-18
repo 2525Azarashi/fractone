@@ -4,7 +4,7 @@
 //  ・背景: 実際の中点変位アルゴリズムを 階層0→7 へ再帰的に描き足していく図解
 //  ・アウトライン文字のマーキー、クリップパスによるワイプ退場
 // ============================================================
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { midpointDisplace } from '../../lib/midpoint-displace'
 import { createRng } from '../../lib/theory'
 import { ProximityWord, Magnetic, ScrambleText } from './fx'
@@ -34,16 +34,24 @@ export function Splash({ onStart }: { onStart: () => void }) {
     return 'M' + pts.join(' L')
   }
 
+  const leftRef = useRef(false)
+  const startRef = useRef(onStart)
+  startRef.current = onStart
   const start = () => {
-    if (leaving) return
+    if (leftRef.current) return
+    leftRef.current = true
     setLeaving(true)
-    setTimeout(onStart, 820)
+    setTimeout(() => startRef.current(), 820)
   }
+  // スプラッシュ表示中はキー入力を独占 (アプリ側のショートカットに流さない)
   useEffect(() => {
-    const on = (e: KeyboardEvent) => (e.key === 'Enter' || e.code === 'Space') && start()
-    window.addEventListener('keydown', on)
-    return () => window.removeEventListener('keydown', on)
-  })
+    const on = (e: KeyboardEvent) => {
+      e.stopImmediatePropagation()
+      if (e.key === 'Enter' || e.code === 'Space') { e.preventDefault(); start() }
+    }
+    window.addEventListener('keydown', on, true)
+    return () => window.removeEventListener('keydown', on, true)
+  }, [])
 
   return (
     <div className={`fixed inset-0 z-[100] overflow-hidden bg-[#0a0812] ${leaving ? 'wipe-out pointer-events-none' : ''}`}>

@@ -17,6 +17,10 @@
 | 人間らしい繰り返し | A / A→(反復進行) / Ā(反行) / a·a(断片化) / A'(変奏) / C(自由) / 終止 を組み合わせ、問い→答えの末尾変形、同一小節リズムの反復、タイミング/強弱の揺らぎ |
 | 可視化タブ | ピッチ可視化（点と線＋中点変位トレースを階層ごとに色分け）/ リズム可視化（16分格子・ベロシティ・音価分布）/ オーディオ設定（音色カード・ミキサー・ADSR・スペクトラム） |
 | 楽典分析 | ハーモニー指数・滑らかさ・リズム明瞭性（ゲージ）、スケール適合率、音素材利用率、モチーフ反復度、協和度、輪郭、ピッチクラス・ホイール、音程ヒストグラム。シーケンス変更のたびにリアルタイム再計算 |
+| Live モード | 作曲後にスライダーを動かすと 120ms デバウンスでブラウザ内再作曲し即反映（同シード）。分析値の変化を Δ バッジで表示 |
+| モーション層 (v3) | 中点変位の再帰描画スプラッシュ / 可変ウェイト ProximityWord / ScrambleText / マグネティックボタン / スポットライト / 作曲パイプライン・オーバーレイ → 楽式リビール / AI領域スイープ / 鍵盤パーティクル |
+| インフォグラフィック | レーダー（前回結果ゴースト付き）、目盛りゲージ、再生連動の楽式タイムライン（現在フレーズ発光 + ヘッド線）、ピッチホイール、音程ヒストグラム |
+| UX | 初回コーチマーク、`:focus-visible` リング、デスクトップは3カラム sticky + 内部スクロール、ピアノロールのホバー十字線・ベロシティバー |
 | 保存 | localStorage 自動保存 + Standard MIDI File (.mid) ダウンロード |
 
 ## アーキテクチャ
@@ -35,7 +39,7 @@ src/
 └── client/                   # React SPA（useReducer で状態を最上位管理）
     ├── App.tsx, state.ts, main.tsx, styles.css (Tailwind v4)
     ├── hooks/useTransport.ts
-    └── components/ ComposeDock, PianoRoll, PianoUI, Controls, ParamPanel, AnalysisPanel, PitchViz, RhythmViz, AudioPanel, Header, icons, ui
+    └── components/ Splash, ComposeOverlay, fx, ComposeDock, PianoRoll, PianoUI, Controls, ParamPanel, AnalysisPanel, PitchViz, RhythmViz, AudioPanel, Header, icons, ui
 ```
 作曲はエッジ API (`/api/compose`) で実行し、通信できない場合は同じ `lib` をブラウザで実行して処理を続けます。
 
@@ -64,6 +68,7 @@ interface Note { id: string; midiNoteNumber: number; startTime: number; duration
 npm run build      # クライアント(Vite+React+Tailwind) → public/static, サーバー → dist
 pm2 start ecosystem.config.cjs   # wrangler pages dev :3000
 ```
+- デバッグ: `/?debug=overlay` / `/?debug=reveal` で作曲オーバーレイ・楽式リビールを固定表示
 
 ## 未実装 / 次のステップ
 - 和音（コード）トラック・伴奏の自動生成
@@ -74,4 +79,4 @@ pm2 start ecosystem.config.cjs   # wrangler pages dev :3000
 ## デプロイ
 - プラットフォーム: Cloudflare Pages（未デプロイ）
 - 技術: Hono + React 18 + Tailwind CSS v4 + Web Audio API + TypeScript
-- 最終更新: 2026-10-17
+- 最終更新: 2026-10-18 (v3)
