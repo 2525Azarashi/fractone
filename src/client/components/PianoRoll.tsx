@@ -398,10 +398,11 @@ function PianoRollImpl({ state, dispatch }: { state: State; dispatch: Dispatch<A
                       onPointerDown={(e) => onNoteDown(e, n, 'move')}
                     />
                     {/* ベロシティ表示 */}
-                    <rect x={x + 3} y={y + ROW - 5} width={Math.max(2, (w - 6) * vel)} height={1.5} rx={1} fill="rgba(255,255,255,.65)" pointerEvents="none" />
-                    {motif && <circle cx={x + 5} cy={y + (ROW - 2) / 2 - 1} r={2} fill="#fff" pointerEvents="none" />}
-                    {w > 34 && (
-                      <text x={x + (motif ? 10 : 4)} y={y + 9.5} fontSize={8} fontWeight={500} fill="rgba(255,255,255,.9)" pointerEvents="none" fontFamily="JetBrains Mono">
+                    {/* ベロシティ: 左端の縦バー (高さ = 強さ) */}
+                    <rect x={x + 1.5} y={y + 1.5 + (ROW - 5) * (1 - vel)} width={1.6} height={Math.max(1.5, (ROW - 5) * vel)} rx={0.8} fill="rgba(255,255,255,.75)" pointerEvents="none" />
+                    {motif && <circle cx={x + w - 5} cy={y + (ROW - 2) / 2} r={1.8} fill="#fff" opacity={0.9} pointerEvents="none" />}
+                    {w > 30 && (
+                      <text x={x + 6} y={y + 9.8} fontSize={8} fontWeight={500} fill="rgba(255,255,255,.9)" pointerEvents="none" fontFamily="JetBrains Mono">
                         {midiToName(n.midiNoteNumber)}
                       </text>
                     )}

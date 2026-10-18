@@ -47,6 +47,7 @@ export default function App() {
   const [toasts, setToasts] = useState<Toast[]>([])
   const [splash, setSplash] = useState(true)
   const [help, setHelp] = useState(false)
+  const [coach, setCoach] = useState(() => { try { return !localStorage.getItem('fractone:coached') } catch { return false } })
   const [burst, setBurst] = useState<{ depth: number; mode: string; seed: number } | null>(null)
   const [reveal, setReveal] = useState<ComposeResult | null>(null)
   const prevAnalysis = useRef<Analysis | null>(null)
@@ -206,8 +207,10 @@ export default function App() {
     dispatch({ type: 'result', result })
     dispatch({ type: 'status', status: 'done' })
     setReveal(result)
+    setCoach(false)
+    try { localStorage.setItem('fractone:coached', '1') } catch {}
     setTimeout(() => setReveal(null), 1900)
-    toast(`${result.notes.length} 音符を作曲しました — Live モードでスライダーが即時反映されます`, 'cy')
+    toast(`${result.notes.length} 音符を作曲 · Live ON でスライダーが即反映`, 'cy')
     // 生成部分の頭から試聴
     const from = mode === 'continue' ? Math.max(0, result.startBeat * (60 / params.bpm) - (60 / params.bpm) * TIME_SIGS[params.timeSig].beatsPerBar) : 0
     dispatch({ type: 'cursor', t: from })
@@ -390,12 +393,12 @@ export default function App() {
 
         <main className="grid grid-cols-1 gap-3 lg:grid-cols-[280px_minmax(0,1fr)_312px]">
           {/* ---- 左: 詳細パラメータ ---- */}
-          <aside id="param-panel" className="order-2 min-w-0 lg:order-1">
+          <aside id="param-panel" className="thin-scroll order-2 min-w-0 lg:sticky lg:top-4 lg:order-1 lg:h-[calc(100vh-108px)] lg:min-h-[740px] lg:overflow-y-auto lg:pr-1">
             <ParamPanel state={state} dispatch={dispatch} onSave={save} />
           </aside>
 
           {/* ---- 中央: 作曲ドック + 可視化 + 鍵盤 ---- */}
-          <section id="visual-panel" className="neu fade-up order-1 flex min-h-[660px] min-w-0 flex-col gap-3 rounded-2xl p-3 md:p-4 lg:order-2 lg:h-[calc(100vh-108px)] lg:min-h-[740px]" style={{ ['--d' as any]: '40ms' }}>
+          <section id="visual-panel" className="neu fade-up order-1 flex lg:sticky lg:top-4 min-h-[660px] min-w-0 flex-col gap-3 rounded-2xl p-3 md:p-4 lg:order-2 lg:h-[calc(100vh-108px)] lg:min-h-[740px]" style={{ ['--d' as any]: '40ms' }}>
             {/* タブ */}
             <div className="flex items-center gap-3">
               <nav className="relative flex rounded-xl border border-[var(--line)] bg-black/25 p-1" role="tablist">
@@ -427,6 +430,14 @@ export default function App() {
             </div>
 
             {/* 作曲ドック — 生成ボタンを音符のすぐ上に */}
+            {coach && !splash && !state.result && (
+              <div className="fade-up relative -mb-1 flex items-center gap-3 rounded-xl border border-fuchsia-300/20 bg-fuchsia-400/[0.06] px-3 py-2 text-[12px] text-[var(--tx)]" role="note">
+                <span className="num grid h-5 w-5 shrink-0 place-items-center rounded-full bg-[#ff5bd6] text-[10px] font-semibold text-white">1</span>
+                <span>デモのメロディが入っています。まずは <b className="font-semibold text-white">続きを作曲</b> を押してみましょう — 鍵盤（A S D F…）で自分のフレーズに差し替えることもできます。</span>
+                <button className="ml-auto shrink-0 text-[11px] text-[var(--tx-3)] hover:text-white" onClick={() => { setCoach(false); try { localStorage.setItem('fractone:coached', '1') } catch {} }}>閉じる</button>
+                <span className="absolute -bottom-1.5 left-14 h-3 w-3 rotate-45 border-b border-r border-fuchsia-300/20 bg-[#1a1220]" />
+              </div>
+            )}
             <ComposeDock
               state={state}
               dispatch={dispatch}
@@ -480,7 +491,7 @@ export default function App() {
           </section>
 
           {/* ---- 右: 分析 ---- */}
-          <aside id="analysis-panel" className="order-3 min-w-0">
+          <aside id="analysis-panel" className="thin-scroll order-3 min-w-0 lg:sticky lg:top-4 lg:h-[calc(100vh-108px)] lg:min-h-[740px] lg:overflow-y-auto lg:pr-1">
             <AnalysisPanel state={state} analysis={analysis} prev={prevAnalysis.current} result={state.result} />
           </aside>
         </main>

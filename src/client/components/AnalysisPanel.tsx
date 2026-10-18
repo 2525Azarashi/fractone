@@ -1,5 +1,6 @@
 // 右パネル: Algorithm Status / 楽典分析 (インフォグラフィック) / モチーフ & 楽式 / シーケンス情報
-import { memo } from 'react'
+import { memo, useRef } from 'react'
+import { usePlayhead } from '../hooks/useTransport'
 import type { Analysis, ComposeResult, Note } from '../../lib/types'
 import { NOTE_NAMES, SCALES } from '../../lib/theory'
 import { AnimatedNumber, Card, Gauge, SectionTitle } from './ui'
@@ -69,8 +70,28 @@ function MotifGlyph({ result }: { result: ComposeResult }) {
   )
 }
 
-function FormTimeline({ result }: { result: ComposeResult }) {
+function FormTimeline({ result, bpm }: { result: ComposeResult; bpm: number }) {
   const f = result.form
+  const svgRef = useRef<SVGSVGElement>(null)
+  const headRef = useRef<SVGLineElement>(null)
+  // 再生位置に連動して、いま鳴っているフレーズを点灯 (React 再レンダーなし)
+  usePlayhead((t, playing) => {
+    const beat = t / (60 / bpm)
+    const svg = svgRef.current
+    if (!svg || !f.length) return
+    const x0 = f[0].startBeat, x1 = f[f.length - 1].startBeat + f[f.length - 1].lengthBeats
+    svg.querySelectorAll<SVGRectElement>('[data-ph]').forEach((r, i) => {
+      const on = playing && beat >= f[i].startBeat && beat < f[i].startBeat + f[i].lengthBeats
+      r.style.opacity = !playing ? '0.85' : on ? '1' : '0.3'
+      r.style.filter = on ? 'drop-shadow(0 0 6px currentColor)' : ''
+    })
+    const k = (beat - x0) / (x1 - x0)
+    if (headRef.current) {
+      headRef.current.style.opacity = playing && k >= 0 && k <= 1 ? '1' : '0'
+      headRef.current.setAttribute('x1', String(k * 240))
+      headRef.current.setAttribute('x2', String(k * 240))
+    }
+  })
   if (!f.length) return null
   const cs = f.map((x) => x.center)
   const lo = Math.min(...cs) - 1, hi = Math.max(...cs) + 1
@@ -81,13 +102,14 @@ function FormTimeline({ result }: { result: ComposeResult }) {
   return (
     <div className="mt-3">
       <p className="eyebrow mb-1 !text-[8.5px]">Macro contour · フレーズ中心音</p>
-      <svg viewBox={`0 0 ${W} ${H}`} className="block w-full overflow-visible">
+      <svg ref={svgRef} viewBox={`0 0 ${W} ${H}`} className="block w-full overflow-visible">
+        <line ref={headRef} y1={0} y2={H - 10} stroke="#fff" strokeWidth={1} style={{ opacity: 0 }} />
         <path d={'M' + f.map((x) => `${(X(x.startBeat) + X(x.startBeat + x.lengthBeats)) / 2},${Y(x.center)}`).join(' L')} fill="none" stroke="rgba(255,255,255,.35)" strokeDasharray="2 3" className="line-draw" style={{ ['--len' as any]: 400 }} />
         {f.map((x, i) => {
           const free = x.transform === 'free' || x.transform === 'cadence'
           return (
             <g key={i}>
-              <rect className="form-block" style={{ ['--d' as any]: `${i * 90}ms` }} x={X(x.startBeat) + 1} y={Y(x.center) - 3} width={X(x.startBeat + x.lengthBeats) - X(x.startBeat) - 2} height={6} rx={2} fill={free ? '#ffcf7a' : '#4fe3ff'} opacity={0.85} />
+              <rect data-ph className="form-block form-live" style={{ ['--d' as any]: `${i * 90}ms`, color: free ? '#ffcf7a' : '#4fe3ff' }} x={X(x.startBeat) + 1} y={Y(x.center) - 3} width={X(x.startBeat + x.lengthBeats) - X(x.startBeat) - 2} height={6} rx={2} fill={free ? '#ffcf7a' : '#4fe3ff'} opacity={0.85} />
               <text x={(X(x.startBeat) + X(x.startBeat + x.lengthBeats)) / 2} y={H - 1} textAnchor="middle" fontSize={8.5} fill="rgba(236,232,245,.6)" fontFamily="JetBrains Mono">{x.label}</text>
             </g>
           )
@@ -208,7 +230,7 @@ function AnalysisPanelImpl({ state, analysis, prev, result }: { state: State; an
             </div>
             <div className="neu-inset mt-2 rounded-xl px-2.5 py-2"><MotifGlyph result={result} /></div>
             {/* 楽式タイムライン: 各フレーズの中心音 (マクロ中点変位) の高さで配置 */}
-            <FormTimeline result={result} />
+            <FormTimeline result={result} bpm={p.bpm} />
             <div className="mt-3 grid grid-cols-4 gap-px overflow-hidden rounded-xl border border-[var(--line)] bg-[var(--line)]">
               {result.form.map((f, i) => (
                 <div key={i} className="pop-in flex flex-col items-center bg-[var(--s1)] py-2" style={{ animationDelay: `${i * 70}ms` }}>
