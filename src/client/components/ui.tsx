@@ -1,5 +1,6 @@
 // 汎用UI部品: Kinetic Typography / アニメーション数値 / スライダー / セレクト / ゲージ
 import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { ScrambleText } from './fx'
 
 /** 1文字ずつ立ち上がる Kinetic Typography */
 export function KineticText({ text, className = '', wave = false, stagger = 32 }: { text: string; className?: string; wave?: boolean; stagger?: number }) {
@@ -161,7 +162,7 @@ export function Gauge({ value, max = 10, label, color = '#4fe3ff', size = 76, su
 
 export function Card({ children, className = '', delay = 0 }: { children: ReactNode; className?: string; delay?: number }) {
   return (
-    <section className={`neu fade-up rounded-2xl ${className}`} style={{ ['--d' as any]: `${delay}ms` }}>
+    <section className={`neu spot fade-up rounded-2xl ${className}`} style={{ ['--d' as any]: `${delay}ms` }}>
       {children}
     </section>
   )
@@ -175,7 +176,7 @@ export function SectionTitle({ index, title, en, right }: { index?: string; titl
         <p className="eyebrow flex items-center gap-2">
           {index && <span className="num text-[var(--tx-2)]">{index}</span>}
           {index && <span className="h-px w-4 bg-[var(--line-2)]" />}
-          {en}
+          <ScrambleText text={en ?? ''} duration={600} />
         </p>
         <h3 className="mt-1 text-[14px] font-semibold tracking-tight text-white">
           <KineticText text={title} />

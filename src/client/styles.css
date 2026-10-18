@@ -244,3 +244,102 @@ body::before {
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .001ms !important; animation-iteration-count: 1 !important; transition-duration: .001ms !important; }
 }
+
+/* ============================================================
+ * v3 — Motion layer
+ * ============================================================ */
+
+/* マグネティック */
+.magnetic { transition: transform .5s var(--spring); will-change: transform; }
+
+/* スポットライト: カーソル位置にほのかな光 */
+.spot { position: relative; }
+.spot::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity .4s;
+  background: radial-gradient(360px circle at var(--mx, 50%) var(--my, 50%), rgba(255, 255, 255, 0.045), transparent 45%);
+  z-index: 0;
+}
+.spot::after {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity .4s;
+  padding: 1px;
+  background: radial-gradient(260px circle at var(--mx, 50%) var(--my, 50%), rgba(255, 91, 214, .55), rgba(79, 227, 255, .25) 40%, transparent 70%);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+}
+.spot:hover::before, .spot:hover::after { opacity: 1; }
+.spot > * { position: relative; z-index: 1; }
+
+/* Δ 表示: ポップしてからフェード */
+.delta { animation: delta 2.6s var(--ease) both; }
+@keyframes delta {
+  0% { opacity: 0; transform: translateY(4px) scale(.8); }
+  12% { opacity: 1; transform: none; }
+  75% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+/* アウトライン・マーキー (スプラッシュ背景) */
+.outline-text { color: transparent; -webkit-text-stroke: 1px rgba(255, 255, 255, .09); }
+.marquee-x { display: flex; width: max-content; animation: marquee-x 38s linear infinite; }
+.marquee-x.rev { animation-direction: reverse; animation-duration: 46s; }
+@keyframes marquee-x { to { transform: translateX(-50%); } }
+
+/* スプラッシュ退場: クリップパスで上へワイプ */
+.wipe-out { animation: wipe-out .9s var(--ease) forwards; }
+@keyframes wipe-out { to { clip-path: inset(0 0 100% 0); } }
+
+/* 作曲完了時: AI 領域を光が走査 */
+.sweep { position: absolute; top: 0; bottom: 0; width: 160px; pointer-events: none; background: linear-gradient(90deg, transparent, rgba(79, 227, 255, .22), rgba(255, 255, 255, .35), transparent); mix-blend-mode: screen; animation: sweep 1.3s var(--ease) forwards; }
+@keyframes sweep { from { transform: translateX(-160px); opacity: 1; } 85% { opacity: 1; } to { transform: translateX(var(--sw, 1200px)); opacity: 0; } }
+
+/* 鍵盤から立ち上る音符パーティクル */
+.particle { position: absolute; bottom: 100%; width: 6px; height: 6px; border-radius: 99px; pointer-events: none; animation: particle 1.1s var(--ease) forwards; }
+@keyframes particle {
+  0% { transform: translate(-50%, 6px) scale(1); opacity: .95; }
+  100% { transform: translate(calc(-50% + var(--dx, 0px)), -70px) scale(.3); opacity: 0; }
+}
+
+/* パイプライン図解 */
+.pipe-step { transition: color .35s, opacity .35s; }
+.pipe-step[data-on="true"] { color: #fff; }
+.pipe-step[data-on="false"] { opacity: .35; }
+.pipe-bar { transform-origin: left; transition: transform .45s var(--ease); }
+
+/* 楽式ラベルの大型キネティック・リビール */
+.form-reveal { animation: form-reveal 1.8s var(--ease) forwards; }
+@keyframes form-reveal {
+  0% { opacity: 0; }
+  12% { opacity: 1; }
+  78% { opacity: 1; }
+  100% { opacity: 0; }
+}
+.form-letter { display: inline-block; animation: form-letter .9s var(--spring) both; animation-delay: var(--d, 0ms); }
+@keyframes form-letter { from { transform: translateY(60%) scale(.6) rotate(-6deg); opacity: 0; filter: blur(8px); } }
+
+/* ライブ再作曲中のインジケータ */
+.live-dot { animation: live-dot 1s ease-in-out infinite; }
+@keyframes live-dot { 50% { transform: scale(1.8); opacity: .3; } }
+
+/* ノート更新時のクロスフェード */
+.note-fade { animation: note-fade .45s var(--ease) both; animation-delay: var(--d, 0ms); }
+@keyframes note-fade { from { opacity: 0; } }
+
+/* 数値ラベルの縦スクロール (オドメーター的) */
+.roll-num { display: inline-block; animation: roll-num .5s var(--ease); }
+@keyframes roll-num { from { transform: translateY(-70%); opacity: 0; } }
+
+/* 楽式タイムライン (分析パネル) のブロック */
+.form-block { transform-origin: left; animation: barx-grow .8s var(--ease) both; animation-delay: var(--d, 0ms); }

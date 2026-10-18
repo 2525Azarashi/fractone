@@ -2,7 +2,7 @@
 // PianoUI — 仮想ピアノ鍵盤 (各鍵盤 = 独立した PianoKey コンポーネント)
 //  マウス/タッチ (pointer) & PCキーボード (keydown/keyup) に反応
 // ============================================================
-import { memo, useRef } from 'react'
+import { memo, useEffect, useRef, useState } from 'react'
 import { isBlack, midiToName, inScale } from '../../lib/theory'
 import type { ScaleName } from '../../lib/types'
 
@@ -28,6 +28,16 @@ interface KeyProps {
 export const PianoKey = memo(function PianoKey({ midi, on, ai, label, inKey, isTonic, onPress, onRelease, style }: KeyProps) {
   const black = isBlack(midi)
   const down = useRef(false)
+  // 打鍵パーティクル: 押された瞬間に1粒放出 (ユーザー=マゼンタ / AI=シアン)
+  const [parts, setParts] = useState<{ id: number; dx: number; ai: boolean }[]>([])
+  const lit = on || ai
+  useEffect(() => {
+    if (!lit) return
+    const id = Date.now() + Math.random()
+    setParts((p) => [...p.slice(-3), { id, dx: (Math.random() - 0.5) * 26, ai: !on && ai }])
+    // 鍵盤を離しても粒は最後まで飛ばす (クリーンアップで止めない)
+    setTimeout(() => setParts((p) => p.filter((x) => x.id !== id)), 1150)
+  }, [lit, on, ai])
   const press = (e: React.PointerEvent) => {
     e.preventDefault()
     ;(e.currentTarget as HTMLElement).releasePointerCapture?.(e.pointerId) // グリッサンド可能に
@@ -57,6 +67,9 @@ export const PianoKey = memo(function PianoKey({ midi, on, ai, label, inKey, isT
       className={`${black ? 'key-black absolute z-10 rounded-b-[5px]' : 'key-white relative rounded-b-[7px]'} flex touch-none select-none flex-col items-center justify-end outline-none`}
       style={style}
     >
+      {parts.map((p) => (
+        <span key={p.id} className="particle" style={{ left: '50%', ['--dx' as any]: `${p.dx}px`, background: p.ai ? '#4fe3ff' : '#ff5bd6', boxShadow: `0 0 10px ${p.ai ? '#4fe3ff' : '#ff5bd6'}` }} />
+      ))}
       {on && <span className="pop-in num pointer-events-none absolute -top-6 left-1/2 -translate-x-1/2 rounded-md bg-[#0d0a15] px-1.5 py-0.5 text-[9px] font-medium text-white ring-1 ring-white/15">{midiToName(midi)}</span>}
       {!black && inKey && <span className={`mb-1 h-1.5 w-1.5 rounded-full ${isTonic ? 'bg-[#ff5bd6]' : 'bg-black/15'}`} />}
       {black && inKey && <span className="mb-1 h-1 w-1 rounded-full bg-black/20" />}

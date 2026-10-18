@@ -3,7 +3,7 @@
 // ============================================================
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
 import { initState, reducer, type Tab } from './state'
-import type { ComposeResult, Note } from '../lib/types'
+import type { Analysis, ComposeParams, ComposeResult, Note } from '../lib/types'
 import { audio, toMidiFile } from '../lib/audio-engine'
 import { compose } from '../lib/composer'
 import { analyze } from '../lib/analysis'
@@ -17,9 +17,12 @@ import { PitchViz } from './components/PitchViz'
 import { RhythmViz } from './components/RhythmViz'
 import { AudioPanel } from './components/AudioPanel'
 import { Controls } from './components/Controls'
-import { KineticText, RiseText, Toggle } from './components/ui'
+import { Toggle } from './components/ui'
+import { Splash } from './components/Splash'
+import { ComposeOverlay, FormReveal } from './components/ComposeOverlay'
+import { useSpotlight } from './components/fx'
 import { ComposeDock } from './components/ComposeDock'
-import { IArrowR, IBars, IChevL, IChevR, IRoll, ISliders, IWave } from './components/icons'
+import { IBars, IChevL, IChevR, IRoll, ISliders, IWave } from './components/icons'
 import { setIdlePosition } from './hooks/useTransport'
 
 const TABS: { id: Tab; label: string; icon: (p: { size?: number; className?: string }) => JSX.Element }[] = [
@@ -29,16 +32,25 @@ const TABS: { id: Tab; label: string; icon: (p: { size?: number; className?: str
   { id: 'audio', label: 'オーディオ設定', icon: ISliders },
 ]
 
+const OVERLAY_MS = 1250
+// 開発用: ?debug=overlay|reveal で演出を固定表示 (スクリーンショット検証用)
+const DEBUG = typeof location !== 'undefined' ? new URLSearchParams(location.search).get('debug') : null
+const analyzeNow = (seq: Note[], p: ComposeParams) => analyze(seq, p.key, p.scale, p.bpm, p.timeSig)
+
 interface Toast { id: number; text: string; tone: 'mag' | 'cy' | 'mint' }
 
 export default function App() {
   const [state, dispatch] = useReducer(reducer, undefined, initState)
   const stateRef = useRef(state)
+  useSpotlight()
   stateRef.current = state
   const [toasts, setToasts] = useState<Toast[]>([])
   const [splash, setSplash] = useState(true)
   const [help, setHelp] = useState(false)
-  const [burst, setBurst] = useState<{ depth: number; mode: string } | null>(null)
+  const [burst, setBurst] = useState<{ depth: number; mode: string; seed: number } | null>(null)
+  const [reveal, setReveal] = useState<ComposeResult | null>(null)
+  const prevAnalysis = useRef<Analysis | null>(null)
+  const lastLiveAt = useRef(0)
   const pressed = useRef(new Map<number, { t: number; vel: number }>())
   const lastMode = useRef<'continue' | 'new'>('continue')
   const volBeforeMute = useRef(0.75)
@@ -150,16 +162,27 @@ export default function App() {
   }, [stopAll, toast])
 
   // ---------------- 作曲 (中点変位法) ----------------
-  const runCompose = useCallback(async (mode: 'continue' | 'new', seedOverride?: number) => {
+  // live=true: スライダー操作中の即時再作曲 (クライアント実行・演出なし)
+  const runCompose = useCallback(async (mode: 'continue' | 'new', seedOverride?: number, live = false) => {
     const s = stateRef.current
-    audio.stop(false)
+    if (!live) audio.stop(false)
     lastMode.current = mode
     const params = { ...s.params, seed: seedOverride ?? s.params.seed }
     if (seedOverride !== undefined) dispatch({ type: 'params', patch: { seed: seedOverride } })
     const userSeq = s.sequence.filter((n) => n.source !== 'ai')
     if (mode === 'continue' && userSeq.length < 2) return toast('続きを作るには2音以上入力してください', 'cy')
+    // 比較用に直前の分析を保持 (Live 連続更新中は基準を固定し、操作開始前との差を見せる)
+    const now = Date.now()
+    if (!live || now - lastLiveAt.current > 1500) prevAnalysis.current = analyzeNow(s.sequence, s.params)
+    if (live) lastLiveAt.current = now
+    if (live) {
+      const result = compose({ mode, sequence: mode === 'continue' ? userSeq : [], params }, 'client')
+      dispatch({ type: 'setSequence', seq: mode === 'continue' ? [...userSeq, ...result.notes] : result.notes, record: false })
+      dispatch({ type: 'result', result })
+      return
+    }
     dispatch({ type: 'status', status: 'composing' })
-    setBurst({ depth: params.depth, mode })
+    setBurst({ depth: params.depth, mode, seed: params.seed })
     const t0 = performance.now()
     let result: ComposeResult
     try {
@@ -174,20 +197,34 @@ export default function App() {
       // オフライン時はクライアントで同じアルゴリズムを実行
       result = compose({ mode, sequence: mode === 'continue' ? userSeq : [], params }, 'client')
     }
-    // 演出: 最低 950ms は分割アニメーションを見せる
-    const wait = Math.max(0, 950 - (performance.now() - t0))
+    // 演出: パイプライン図解を最後まで見せる
+    const wait = Math.max(0, OVERLAY_MS - (performance.now() - t0))
     await new Promise((r) => setTimeout(r, wait))
     setBurst(null)
     const next: Note[] = mode === 'continue' ? [...userSeq, ...result.notes] : result.notes
     dispatch({ type: 'setSequence', seq: next })
     dispatch({ type: 'result', result })
     dispatch({ type: 'status', status: 'done' })
-    toast(`${result.notes.length} 音符を作曲しました`, 'cy')
+    setReveal(result)
+    setTimeout(() => setReveal(null), 1900)
+    toast(`${result.notes.length} 音符を作曲しました — Live モードでスライダーが即時反映されます`, 'cy')
     // 生成部分の頭から試聴
     const from = mode === 'continue' ? Math.max(0, result.startBeat * (60 / params.bpm) - (60 / params.bpm) * TIME_SIGS[params.timeSig].beatsPerBar) : 0
     dispatch({ type: 'cursor', t: from })
     setIdlePosition(from)
   }, [toast])
+
+  // ---- Live モード: 生成済みの状態でパラメータが変わったら即時再作曲 ----
+  const liveKey = [state.params.bars, state.params.range, state.params.displacement, state.params.depth, state.params.roughness, state.params.motifStrength, state.params.humanize, state.params.density, state.params.key, state.params.scale, state.params.timeSig, state.params.seed].join('|')
+  const lastLiveKey = useRef(liveKey)
+  useEffect(() => {
+    if (lastLiveKey.current === liveKey) return
+    lastLiveKey.current = liveKey
+    const s = stateRef.current
+    if (!s.live || !s.result || s.status === 'composing' || s.status === 'recording') return
+    const id = setTimeout(() => runCompose(lastMode.current, undefined, true), 120)
+    return () => clearTimeout(id)
+  }, [liveKey, runCompose])
 
   // ---------------- 編集 ----------------
   const deleteSelected = useCallback(() => {
@@ -418,7 +455,8 @@ export default function App() {
                 {state.tab === 'rhythm' && <RhythmViz sequence={state.sequence} bpm={state.params.bpm} timeSig={state.params.timeSig} analysis={analysis} generation={state.generation} />}
                 {state.tab === 'audio' && <AudioPanel settings={state.audio} dispatch={dispatch} />}
               </div>
-              {burst && <ComposeBurst depth={burst.depth} mode={burst.mode} />}
+              {(burst || DEBUG === 'overlay') && <ComposeOverlay depth={burst?.depth ?? 5} mode={burst?.mode ?? 'continue'} seed={burst?.seed ?? 7} total={DEBUG === 'overlay' ? 4000 : OVERLAY_MS} />}
+              {(reveal || (DEBUG === 'reveal' && state.result)) && state.tab === 'roll' && <FormReveal result={(reveal ?? state.result)!} />}
             </div>
 
             {/* 鍵盤 */}
@@ -443,7 +481,7 @@ export default function App() {
 
           {/* ---- 右: 分析 ---- */}
           <aside id="analysis-panel" className="order-3 min-w-0">
-            <AnalysisPanel state={state} analysis={analysis} result={state.result} />
+            <AnalysisPanel state={state} analysis={analysis} prev={prevAnalysis.current} result={state.result} />
           </aside>
         </main>
 
@@ -465,41 +503,6 @@ export default function App() {
 
       {help && <HelpSheet onClose={() => setHelp(false)} />}
       {splash && <Splash onStart={() => { audio.ensure(); [60, 64, 67, 72].forEach((m, i) => setTimeout(() => audio.preview(m, 0.4, 0.55), i * 110)); setSplash(false) }} />}
-    </div>
-  )
-}
-
-/** 生成中: 中点変位の再帰分割をインフォグラフィックで演出 */
-function ComposeBurst({ depth, mode }: { depth: number; mode: string }) {
-  const [lv, setLv] = useState(0)
-  useEffect(() => {
-    const id = setInterval(() => setLv((l) => Math.min(depth, l + 1)), 900 / (depth + 1))
-    return () => clearInterval(id)
-  }, [depth])
-  const W = 520, H = 120
-  const n = 1 << lv
-  const rnd = (i: number) => (Math.sin(i * 12.9898 + 7.1) * 43758.5453) % 1
-  const pts = Array.from({ length: n + 1 }, (_, i) => [(i / n) * W, H / 2 + (i === 0 || i === n ? 0 : rnd(i * (64 / n)) * 42)])
-  return (
-    <div className="absolute inset-0 z-30 flex flex-col items-center justify-center rounded-2xl bg-[#0a0812]/82 backdrop-blur-md">
-      <p className="eyebrow">{mode === 'continue' ? 'Continuing your melody' : 'Composing from a new motif'}</p>
-      <h2 className="mt-3 flex items-baseline gap-3 font-display text-white">
-        <span className="text-[13px] text-[var(--tx-3)]">LEVEL</span>
-        <span className="text-6xl font-semibold tracking-tight"><KineticText key={lv} text={String(lv).padStart(2, '0')} stagger={60} /></span>
-        <span className="text-[13px] text-[var(--tx-3)]">/ {String(depth).padStart(2, '0')}</span>
-      </h2>
-      <p className="mt-2 text-[12px] text-[var(--tx-2)]"><KineticText key={`t${lv}`} text={lv === 0 ? '両端の音を決定' : `${n} 区間 — 中点を変位`} stagger={20} /></p>
-      <svg viewBox={`0 0 ${W} ${H}`} className="mt-6 w-[min(520px,80%)] overflow-visible">
-        <defs><linearGradient id="bl" x1="0" x2="1"><stop offset="0" stopColor="#ff5bd6" /><stop offset=".6" stopColor="#8b5cff" /><stop offset="1" stopColor="#4fe3ff" /></linearGradient></defs>
-        <line x1={0} x2={W} y1={H / 2} y2={H / 2} stroke="rgba(255,255,255,.08)" strokeDasharray="2 4" />
-        <path d={pts.map((p, i) => `${i ? 'L' : 'M'}${p[0]},${p[1]}`).join(' ')} fill="none" stroke="url(#bl)" strokeWidth={1.6} strokeLinejoin="round" style={{ transition: 'd .25s var(--ease)' }} />
-        {pts.map((p, i) => <circle key={`${lv}-${i}`} className="dot-pop" cx={p[0]} cy={p[1]} r={lv > 4 ? 1.6 : 3} fill="#0a0812" stroke="#fff" strokeWidth={1.2} />)}
-      </svg>
-      <div className="mt-6 flex gap-1">
-        {Array.from({ length: depth + 1 }).map((_, i) => (
-          <span key={i} className={`h-[3px] w-7 rounded-full transition-all duration-300 ${i <= lv ? 'bg-white' : 'bg-white/10'}`} />
-        ))}
-      </div>
     </div>
   )
 }
@@ -536,55 +539,3 @@ function HelpSheet({ onClose }: { onClose: () => void }) {
   )
 }
 
-/** スプラッシュ: エディトリアルな Kinetic Typography + AudioContext のアンロック */
-function Splash({ onStart }: { onStart: () => void }) {
-  const [leaving, setLeaving] = useState(false)
-  const curve = useMemo(() => {
-    const n = 64
-    let d = ''
-    for (let i = 0; i <= n; i++) {
-      const x = (i / n) * 1200
-      const y = 470 + Math.sin(i * 0.31) * 46 + Math.sin(i * 0.93) * 20 + Math.sin(i * 2.7) * 7
-      d += `${i ? 'L' : 'M'}${x.toFixed(1)},${y.toFixed(1)}`
-    }
-    return d
-  }, [])
-  return (
-    <div className={`fixed inset-0 z-[100] flex flex-col justify-between bg-[#0a0812] p-6 transition-all duration-700 md:p-12 ${leaving ? 'pointer-events-none opacity-0' : ''}`} style={{ transitionTimingFunction: 'var(--ease)' }}>
-      <svg viewBox="0 0 1200 600" preserveAspectRatio="none" className="pointer-events-none absolute inset-0 h-full w-full opacity-45">
-        <defs><linearGradient id="sp" x1="0" x2="1"><stop offset="0" stopColor="#ff5bd6" /><stop offset=".6" stopColor="#8b5cff" /><stop offset="1" stopColor="#4fe3ff" /></linearGradient></defs>
-        <path d={curve} fill="none" stroke="url(#sp)" strokeWidth={1.2} className="line-draw" style={{ ['--len' as any]: 2400 }} vectorEffect="non-scaling-stroke" />
-      </svg>
-      <div className="relative flex items-center justify-between">
-        <span className="eyebrow">FracTone — v1.0</span>
-        <span className="eyebrow hidden sm:inline">Midpoint · Motif · Analysis</span>
-      </div>
-      <div className="relative">
-        <p className="eyebrow mb-4"><RiseText>A fractal sequencer for learning composition</RiseText></p>
-        <h1 className="font-display text-[clamp(56px,12vw,168px)] font-semibold leading-[0.88] tracking-[-0.045em] text-white">
-          <RiseText delay={120}>Frac</RiseText>
-          <RiseText delay={220} className="grad-text">Tone</RiseText>
-        </h1>
-        <p className="mt-6 max-w-md text-[15px] leading-relaxed text-[var(--tx-2)]">
-          <RiseText delay={420}>あなたが弾いたメロディの続きを、</RiseText><br />
-          <RiseText delay={500}>中点変位法とモチーフ展開で作曲します。</RiseText>
-        </p>
-      </div>
-      <div className="relative flex flex-wrap items-end justify-between gap-6">
-        <div className="fade-up grid grid-cols-3 gap-8 text-[var(--tx-3)]" style={{ ['--d' as any]: '700ms' }}>
-          {[['01', '弾く'], ['02', '続きを作曲'], ['03', '分析して学ぶ']].map(([n, t]) => (
-            <div key={n}><p className="num text-[10px]">{n}</p><p className="mt-1 text-[12.5px] text-[var(--tx)]">{t}</p></div>
-          ))}
-        </div>
-        <button
-          onClick={() => { setLeaving(true); setTimeout(onStart, 420) }}
-          className="btn-primary fade-up group flex items-center gap-3 rounded-full py-3.5 pl-7 pr-5 text-[14px] font-medium"
-          style={{ ['--d' as any]: '850ms' }}
-        >
-          はじめる
-          <span className="grid h-7 w-7 place-items-center rounded-full bg-white/15 transition-transform duration-300 group-hover:translate-x-1"><IArrowR size={14} /></span>
-        </button>
-      </div>
-    </div>
-  )
-}

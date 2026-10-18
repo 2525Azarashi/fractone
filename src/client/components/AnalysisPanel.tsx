@@ -2,7 +2,8 @@
 import { memo } from 'react'
 import type { Analysis, ComposeResult, Note } from '../../lib/types'
 import { NOTE_NAMES, SCALES } from '../../lib/theory'
-import { AnimatedNumber, Card, Gauge, KineticText, SectionTitle } from './ui'
+import { AnimatedNumber, Card, Gauge, SectionTitle } from './ui'
+import { Delta, Radar, ScrambleText } from './fx'
 import type { State } from '../state'
 
 const TRANSFORM_JA: Record<string, string> = {
@@ -10,12 +11,12 @@ const TRANSFORM_JA: Record<string, string> = {
   variation: '変奏', fragment: '断片化', free: '自由展開', cadence: '終止',
 }
 
-function Row({ k, v, hl, delay = 0 }: { k: string; v: React.ReactNode; hl?: 'mint' | 'cy' | 'mag'; delay?: number }) {
+function Row({ k, v, hl, delay = 0, d }: { k: string; v: React.ReactNode; hl?: 'mint' | 'cy' | 'mag'; delay?: number; d?: React.ReactNode }) {
   const c = hl === 'mint' ? 'text-emerald-300' : hl === 'cy' ? 'text-cyan-300' : hl === 'mag' ? 'text-fuchsia-300' : 'text-white'
   return (
     <div className="fade-up flex items-center justify-between border-b border-[var(--line)] py-2 last:border-0" style={{ ['--d' as any]: `${delay}ms` }}>
       <span className="text-[11.5px] text-[var(--tx-2)]">{k}</span>
-      <span className={`num text-[12px] font-medium ${c}`}>{v}</span>
+      <span className="flex items-center gap-2">{d}<span className={`num text-[12px] font-medium ${c}`}>{v}</span></span>
     </div>
   )
 }
@@ -68,8 +69,40 @@ function MotifGlyph({ result }: { result: ComposeResult }) {
   )
 }
 
-function AnalysisPanelImpl({ state, analysis, result }: { state: State; analysis: Analysis | null; result: ComposeResult | null }) {
+function FormTimeline({ result }: { result: ComposeResult }) {
+  const f = result.form
+  if (!f.length) return null
+  const cs = f.map((x) => x.center)
+  const lo = Math.min(...cs) - 1, hi = Math.max(...cs) + 1
+  const W = 240, H = 54
+  const x0 = f[0].startBeat, x1 = f[f.length - 1].startBeat + f[f.length - 1].lengthBeats
+  const X = (b: number) => ((b - x0) / (x1 - x0)) * W
+  const Y = (c: number) => 6 + ((hi - c) / (hi - lo)) * (H - 20)
+  return (
+    <div className="mt-3">
+      <p className="eyebrow mb-1 !text-[8.5px]">Macro contour · フレーズ中心音</p>
+      <svg viewBox={`0 0 ${W} ${H}`} className="block w-full overflow-visible">
+        <path d={'M' + f.map((x) => `${(X(x.startBeat) + X(x.startBeat + x.lengthBeats)) / 2},${Y(x.center)}`).join(' L')} fill="none" stroke="rgba(255,255,255,.35)" strokeDasharray="2 3" className="line-draw" style={{ ['--len' as any]: 400 }} />
+        {f.map((x, i) => {
+          const free = x.transform === 'free' || x.transform === 'cadence'
+          return (
+            <g key={i}>
+              <rect className="form-block" style={{ ['--d' as any]: `${i * 90}ms` }} x={X(x.startBeat) + 1} y={Y(x.center) - 3} width={X(x.startBeat + x.lengthBeats) - X(x.startBeat) - 2} height={6} rx={2} fill={free ? '#ffcf7a' : '#4fe3ff'} opacity={0.85} />
+              <text x={(X(x.startBeat) + X(x.startBeat + x.lengthBeats)) / 2} y={H - 1} textAnchor="middle" fontSize={8.5} fill="rgba(236,232,245,.6)" fontFamily="JetBrains Mono">{x.label}</text>
+            </g>
+          )
+        })}
+      </svg>
+    </div>
+  )
+}
+
+function AnalysisPanelImpl({ state, analysis, prev, result }: { state: State; analysis: Analysis | null; prev: Analysis | null; result: ComposeResult | null }) {
   const a = analysis
+  const pv = result ? prev : null
+  const dd = (f: (x: Analysis) => number) => (a && pv && pv.noteCount ? f(a) - f(pv) : null)
+  const radarOf = (x: Analysis | null) =>
+    x ? [x.harmony / 10, x.smoothness / 10, x.rhythmClarity / 10, Math.min(1, x.motifRepetition * 2.5), Math.min(1, x.leapRatio * 2.5), Math.min(1, x.rangeSemis / 24)] : [0, 0, 0, 0, 0, 0]
   const p = state.params
   const userN = state.sequence.filter((n: Note) => n.source !== 'ai').length
   const aiN = state.sequence.length - userN
@@ -91,7 +124,7 @@ function AnalysisPanelImpl({ state, analysis, result }: { state: State; analysis
           </span>
         </div>
         <p className="mt-2 font-display text-[22px] font-semibold leading-tight tracking-tight text-white">
-          <KineticText key={statusText} text={statusText} />
+          <ScrambleText text={statusText} duration={520} />
         </p>
         <p className="num mt-1 truncate text-[10.5px] text-[var(--tx-3)]">
           {result ? `${result.engine === 'server' ? 'edge api' : 'local'} · ${result.elapsedMs}ms · seed ${p.seed}` : 'パラメータを調整して生成'}
@@ -112,9 +145,26 @@ function AnalysisPanelImpl({ state, analysis, result }: { state: State; analysis
       <Card className="p-5" delay={140}>
         <SectionTitle index="04" en="Analysis" title="楽典分析" />
         <div className="grid grid-cols-3">
-          <Gauge value={a?.harmony ?? 0} label="ハーモニー" color="#4fe3ff" sub="Harmony" />
-          <Gauge value={a?.smoothness ?? 0} label="滑らかさ" color="#7af0c4" sub="Smooth" />
-          <Gauge value={a?.rhythmClarity ?? 0} label="リズム明瞭" color="#ffcf7a" sub="Rhythm" />
+          {[
+            { v: a?.harmony ?? 0, l: 'ハーモニー', c: '#4fe3ff', s: 'Harmony', d: dd((x) => x.harmony) },
+            { v: a?.smoothness ?? 0, l: '滑らかさ', c: '#7af0c4', s: 'Smooth', d: dd((x) => x.smoothness) },
+            { v: a?.rhythmClarity ?? 0, l: 'リズム明瞭', c: '#ffcf7a', s: 'Rhythm', d: dd((x) => x.rhythmClarity) },
+          ].map((g) => (
+            <div key={g.s} className="relative">
+              <Gauge value={g.v} label={g.l} color={g.c} sub={g.s} />
+              <span className="absolute right-0 top-0"><Delta v={g.d} threshold={0.1} /></span>
+            </div>
+          ))}
+        </div>
+        {/* レーダー: 現在 vs 直前 (破線) */}
+        <div className="neu-inset mt-4 rounded-xl px-2 pb-1 pt-2">
+          <div className="flex items-center justify-between px-1">
+            <span className="eyebrow !text-[8.5px]">Profile</span>
+            {pv && <span className="flex items-center gap-1.5 text-[9.5px] text-[var(--tx-3)]"><i className="w-3 border-t border-dashed border-white/50" />前回</span>}
+          </div>
+          <div className="mx-auto max-w-[220px]">
+            <Radar axes={['HARM', 'SMOOTH', 'RHYTHM', 'MOTIF', 'LEAP', 'RANGE']} values={radarOf(a)} prev={pv && pv.noteCount ? radarOf(pv) : null} />
+          </div>
         </div>
         {a && a.noteCount > 0 && (
           <p className="mt-4 border-l-2 border-fuchsia-400/60 pl-3 text-[12px] leading-relaxed text-[var(--tx)]">
@@ -124,8 +174,8 @@ function AnalysisPanelImpl({ state, analysis, result }: { state: State; analysis
         <div className="mt-3">
           <Row k="スケール適合率" v={<AnimatedNumber value={(a?.inScaleRatio ?? 0) * 100} suffix="%" />} hl={(a?.inScaleRatio ?? 0) > 0.95 ? 'mint' : undefined} delay={40} />
           <Row k="音素材利用率" v={<AnimatedNumber value={(a?.materialUsage ?? 0) * 100} suffix="%" />} hl={(a?.materialUsage ?? 0) >= 0.99 ? 'mint' : 'cy'} delay={80} />
-          <Row k="モチーフ反復度" v={<AnimatedNumber value={(a?.motifRepetition ?? 0) * 100} suffix="%" />} hl="mag" delay={120} />
-          <Row k="協和度" v={<AnimatedNumber value={(a?.consonance ?? 0) * 100} suffix="%" />} delay={160} />
+          <Row k="モチーフ反復度" v={<AnimatedNumber value={(a?.motifRepetition ?? 0) * 100} suffix="%" />} hl="mag" delay={120} d={<Delta v={(dd((x) => x.motifRepetition) ?? 0) * 100} decimals={0} suffix="%" threshold={1} />} />
+          <Row k="協和度" v={<AnimatedNumber value={(a?.consonance ?? 0) * 100} suffix="%" />} delay={160} d={<Delta v={(dd((x) => x.consonance) ?? 0) * 100} decimals={0} suffix="%" threshold={1} />} />
           <Row k="平均音程 / 最大跳躍" v={<><AnimatedNumber value={a?.avgInterval ?? 0} decimals={1} /> / {a?.maxLeap ?? 0} st</>} delay={200} />
           <Row k="シンコペーション" v={<AnimatedNumber value={(a?.syncopation ?? 0) * 100} suffix="%" />} delay={240} />
         </div>
@@ -157,6 +207,8 @@ function AnalysisPanelImpl({ state, analysis, result }: { state: State; analysis
               <span className="num text-[11px] tracking-[.25em] text-amber-200/90">{result.motif.signature}</span>
             </div>
             <div className="neu-inset mt-2 rounded-xl px-2.5 py-2"><MotifGlyph result={result} /></div>
+            {/* 楽式タイムライン: 各フレーズの中心音 (マクロ中点変位) の高さで配置 */}
+            <FormTimeline result={result} />
             <div className="mt-3 grid grid-cols-4 gap-px overflow-hidden rounded-xl border border-[var(--line)] bg-[var(--line)]">
               {result.form.map((f, i) => (
                 <div key={i} className="pop-in flex flex-col items-center bg-[var(--s1)] py-2" style={{ animationDelay: `${i * 70}ms` }}>

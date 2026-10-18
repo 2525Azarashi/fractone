@@ -22,6 +22,7 @@ export interface State {
   result: ComposeResult | null
   analysis: Analysis | null
   loop: boolean
+  live: boolean // 生成後、パラメータ変更で即時再作曲
   quantizeRec: boolean
   snap: number // 拍
   baseOctave: number
@@ -93,7 +94,7 @@ export type Action =
   | { type: 'status'; status: Status; message?: string }
   | { type: 'result'; result: ComposeResult | null }
   | { type: 'analysis'; analysis: Analysis | null }
-  | { type: 'toggle'; key: 'loop' | 'quantizeRec' }
+  | { type: 'toggle'; key: 'loop' | 'quantizeRec' | 'live' }
   | { type: 'snap'; snap: number }
   | { type: 'octave'; delta: number }
   | { type: 'cursor'; t: number }
@@ -189,6 +190,7 @@ export function initState(): State {
     result: null,
     analysis: null,
     loop: false,
+    live: true,
     quantizeRec: true,
     snap: 0.25,
     baseOctave: 4,

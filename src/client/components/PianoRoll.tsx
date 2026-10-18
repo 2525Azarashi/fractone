@@ -126,7 +126,14 @@ function PianoRollImpl({ state, dispatch }: { state: State; dispatch: Dispatch<A
 
   const onMove = (e: React.PointerEvent) => {
     const d = drag.current
-    if (!d) return
+    if (!d) {
+      const p = toLocal(e)
+      const midi = Math.round(HIGH - p.y / ROW + 0.5)
+      const beat = Math.floor(p.x / ppb / snap) * snap
+      // セルが変わった時だけ更新 (再レンダーを最小化)
+      setHoverCell((h) => (h && h.midi === midi && h.beat === beat ? h : { x: beat * ppb, y: yOf(midi), midi, beat }))
+      return
+    }
     const p = toLocal(e)
     const dx = p.x - d.x0
     const dy = p.y - d.y0
@@ -254,6 +261,20 @@ function PianoRollImpl({ state, dispatch }: { state: State; dispatch: Dispatch<A
 
   const form = result?.form ?? []
   const aiStart = result ? result.startBeat * ppb : null
+  // 直前の生成が「演出あり」か「Live 再作曲」かを判定 (演出の切替用)
+  const liveRef = useRef(false)
+  const lastStatus = useRef(state.status)
+  const [sweepKey, setSweepKey] = useState(0)
+  useEffect(() => {
+    // composing を経由した生成 = 本生成 → スイープ演出
+    liveRef.current = lastStatus.current !== 'composing'
+    if (!liveRef.current) setSweepKey((k) => k + 1)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [generation])
+  useEffect(() => {
+    lastStatus.current = state.status
+  }, [state.status])
+  const [hoverCell, setHoverCell] = useState<{ x: number; y: number; midi: number; beat: number } | null>(null)
 
   return (
     <div className="relative h-full">
@@ -324,6 +345,7 @@ function PianoRollImpl({ state, dispatch }: { state: State; dispatch: Dispatch<A
               onPointerMove={onMove}
               onPointerUp={onUp}
               onPointerCancel={onUp}
+              onPointerLeave={() => setHoverCell(null)}
               onDoubleClick={onDouble}
             >
               <defs>
@@ -359,7 +381,7 @@ function PianoRollImpl({ state, dispatch }: { state: State; dispatch: Dispatch<A
                     }}
                     data-s={n.startTime}
                     data-e={n.startTime + n.duration}
-                    className={ai && n.id.startsWith('ai') ? 'note-pop' : ''}
+                    className={ai && n.id.startsWith('ai') ? (state.status === 'done' || state.status === 'idle' ? (liveRef.current ? 'note-fade' : 'note-pop') : 'note-pop') : ''}
                     style={{ ['--d' as any]: `${Math.min(1400, (idx % 200) * 14)}ms`, cursor: 'grab' }}
                   >
                     <rect
@@ -388,8 +410,22 @@ function PianoRollImpl({ state, dispatch }: { state: State; dispatch: Dispatch<A
                   </g>
                 )
               })}
-              {marquee && <rect x={marquee.x} y={marquee.y} width={marquee.w} height={marquee.h} fill="rgba(255,79,216,0.12)" stroke="#ff4fd8" strokeDasharray="4 3" rx={4} />}
+              {marquee && <rect x={marquee.x} y={marquee.y} width={marquee.w} height={marquee.h} fill="rgba(255,91,214,0.08)" stroke="#ff5bd6" strokeDasharray="3 3" rx={3} />}
+              {/* ホバー行・列のクロスヘア */}
+              {hoverCell && !drag.current && (
+                <g pointerEvents="none">
+                  <rect x={0} y={yOf(hoverCell.midi)} width={W} height={ROW} fill="rgba(255,255,255,0.025)" />
+                  <rect x={hoverCell.x} y={hoverCell.y + 1} width={Math.max(4, snap * ppb * 2 - 1)} height={ROW - 2} rx={3} fill="none" stroke="rgba(255,255,255,.28)" strokeDasharray="2 2" />
+                </g>
+              )}
             </svg>
+            {/* 生成直後: AI 領域を光が走査 */}
+            {aiStart !== null && sweepKey > 0 && <div key={sweepKey} className="sweep" style={{ left: aiStart, ['--sw' as any]: `${Math.max(400, W - aiStart)}px` }} />}
+            {hoverCell && !drag.current && (
+              <div className="num pointer-events-none absolute z-10 rounded-md border border-[var(--line-2)] bg-[#0d0a15]/90 px-1.5 py-0.5 text-[9.5px] text-white backdrop-blur" style={{ left: hoverCell.x + snap * ppb * 2 + 6, top: hoverCell.y - 4 }}>
+                {midiToName(hoverCell.midi)} · {(Math.floor(hoverCell.beat / beatsPerBar) + 1)}.{(Math.floor(hoverCell.beat) % beatsPerBar) + 1}
+              </div>
+            )}
             {/* playhead */}
             <div ref={headRef} className="pointer-events-none absolute left-0 top-0 h-full" style={{ willChange: 'transform' }}>
               <div className="absolute -left-px top-0 h-full w-px bg-white" style={{ boxShadow: '0 0 10px rgba(79,227,255,.9), 0 0 2px #fff' }} />
