@@ -132,8 +132,10 @@ export function Gauge({ value, max = 10, label, color = '#4fe3ff', size = 76, su
   const c = 2 * Math.PI * r
   const [mounted, setMounted] = useState(false)
   useEffect(() => {
-    const id = requestAnimationFrame(() => setMounted(true))
-    return () => cancelAnimationFrame(id)
+    // 2 フレーム待ってから値を入れる (初期値 0 → 実値 のトランジションを確実に発火させる)
+    // rAF はタブ非表示や負荷で止まることがあるので setTimeout で確実に
+    const id = window.setTimeout(() => setMounted(true), 60)
+    return () => clearTimeout(id)
   }, [])
   const k = mounted ? Math.max(0, Math.min(1, value / max)) : 0
   const ticks = Array.from({ length: 40 })
@@ -148,7 +150,7 @@ export function Gauge({ value, max = 10, label, color = '#4fe3ff', size = 76, su
             return <line key={i} x1={size / 2 + Math.cos(a) * r1} y1={size / 2 + Math.sin(a) * r1} x2={size / 2 + Math.cos(a) * r2} y2={size / 2 + Math.sin(a) * r2} stroke={on ? color : 'rgba(255,255,255,.08)'} strokeWidth={1} style={{ transition: `stroke .3s ${i * 18}ms` }} />
           })}
           <circle cx={size / 2} cy={size / 2} r={r - 2} stroke="rgba(255,255,255,0.06)" strokeWidth={2} fill="none" />
-          <circle className="gauge-ring" cx={size / 2} cy={size / 2} r={r - 2} stroke={color} strokeWidth={2} strokeLinecap="round" fill="none" strokeDasharray={c} strokeDashoffset={c * (1 - k)} style={{ filter: `drop-shadow(0 0 4px ${color})` }} />
+          <circle className="gauge-ring" cx={size / 2} cy={size / 2} r={r - 2} stroke={color} strokeWidth={2} strokeLinecap="round" fill="none" strokeDasharray={c} style={{ strokeDashoffset: c * (1 - k), filter: `drop-shadow(0 0 4px ${color})` }} />
         </svg>
         <div className="absolute inset-0 flex flex-col items-center justify-center">
           <AnimatedNumber value={value} decimals={1} className="font-display text-[19px] font-semibold tracking-tight text-white" />
