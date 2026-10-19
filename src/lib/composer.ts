@@ -152,18 +152,18 @@ export function compose(req: ComposeRequest, engine: 'server' | 'client' = 'serv
     const motifish = ph.transform !== 'free' && ph.transform !== 'cadence'
     if (motifish && motif) {
       // モチーフ由来: リズムもモチーフから (人間らしい反復)
-      const mnotes = transformMotif(motif, ph.transform, rng)
+      const mnotes = transformMotif(motif, ph.transform, rng, p.motifStrength)
       const mlen = Math.max(motif.lengthBeats, Math.max(...mnotes.map((n) => n.rel + n.dur)))
       events = []
       // フレーズ前半 = モチーフ, 後半 = モチーフ(変化) or 応答
       const reps = Math.max(1, Math.floor(ph.lengthBeats / Math.max(1, mlen)))
       for (let r = 0; r < reps; r++) {
         const off = r * mlen
-        const shift = r === 0 ? 0 : ph.transform === 'sequence' ? r * rng.pick([1, -1, 2]) : r === reps - 1 && rng.chance(0.5) ? rng.pick([-1, 1]) : 0
+        const shift = r === 0 ? 0 : ph.transform === 'sequence' ? r * rng.pick([1, -1, 2]) : r === reps - 1 && rng.chance(0.6 - p.motifStrength * 0.35) ? rng.pick([-1, 1]) : 0
         mnotes.forEach((n, k) => {
           if (off + n.rel >= ph.lengthBeats - 1e-6) return
           // 最終反復の末尾は応答として変形させる (問いと答え)
-          const answer = r === reps - 1 && reps > 1 && k >= mnotes.length - 2 && rng.chance(0.55)
+          const answer = r === reps - 1 && reps > 1 && k >= mnotes.length - 2 && rng.chance(0.75 - p.motifStrength * 0.45)
           events.push({
             rel: off + n.rel,
             dur: Math.min(n.dur, ph.lengthBeats - (off + n.rel)),
@@ -186,7 +186,7 @@ export function compose(req: ComposeRequest, engine: 'server' | 'client' = 'serv
         timeSig: p.timeSig,
         density: p.density,
         depth: p.depth,
-        repeatProb: 0.25 + p.motifStrength * 0.4,
+        repeatProb: 0.05 + p.motifStrength * 0.6,
         rng,
         cadence: isLast,
       })

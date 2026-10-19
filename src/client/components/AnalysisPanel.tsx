@@ -124,7 +124,7 @@ function AnalysisPanelImpl({ state, analysis, prev, result }: { state: State; an
   const pv = result ? prev : null
   const dd = (f: (x: Analysis) => number) => (a && pv && pv.noteCount ? f(a) - f(pv) : null)
   const radarOf = (x: Analysis | null) =>
-    x ? [x.harmony / 10, x.smoothness / 10, x.rhythmClarity / 10, Math.min(1, x.motifRepetition * 2.5), Math.min(1, x.leapRatio * 2.5), Math.min(1, x.rangeSemis / 24)] : [0, 0, 0, 0, 0, 0]
+    x ? [x.harmony / 10, x.smoothness / 10, x.rhythmClarity / 10, Math.min(1, x.motifRepetition), Math.min(1, x.leapRatio * 2.5), Math.min(1, x.rangeSemis / 24)] : [0, 0, 0, 0, 0, 0]
   const p = state.params
   const userN = state.sequence.filter((n: Note) => n.source !== 'ai').length
   const aiN = state.sequence.length - userN

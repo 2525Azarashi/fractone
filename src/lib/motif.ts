@@ -164,7 +164,8 @@ export function createMotif(opts: {
  *  variation  : 一部の音だけ変える / 末尾を変える
  *  fragment   : 前半だけを切り出して2回 (ゼクエンツ付き)
  */
-export function transformMotif(m: Motif, t: PhraseTransform, rng: Rng): MotifNote[] {
+/** strength (= モチーフ反復度) が高いほど変奏が控えめになり、原形がはっきり聴こえる */
+export function transformMotif(m: Motif, t: PhraseTransform, rng: Rng, strength = 0.7): MotifNote[] {
   const ns = m.notes.map((n) => ({ ...n }))
   switch (t) {
     case 'sequence': {
@@ -183,7 +184,7 @@ export function transformMotif(m: Motif, t: PhraseTransform, rng: Rng): MotifNot
     }
     case 'variation': {
       const out = ns.map((n, i) => {
-        if (i > 0 && rng.chance(0.35)) return { ...n, degree: n.degree + rng.pick([-1, 1, 2, -2]) }
+        if (i > 0 && rng.chance(0.45 - strength * 0.3)) return { ...n, degree: n.degree + rng.pick([-1, 1, 2, -2]) }
         return n
       })
       // 末尾を変化させて「問い→答え」感を出す

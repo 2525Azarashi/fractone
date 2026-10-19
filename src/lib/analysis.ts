@@ -2,7 +2,7 @@
 // lib/analysis.ts — 楽典分析 (ハーモニー指数 / 滑らかさ / リズム明瞭性 ...)
 // ============================================================
 import type { Analysis, Note, ScaleName, TimeSignature } from './types'
-import { TIME_SIGS, inScale, clamp } from './theory'
+import { TIME_SIGS, inScale, clamp, scaleNotes, degreeIndex } from './theory'
 
 // 音程(半音)ごとの協和度 (0=不協和 1=完全協和)
 const CONSONANCE = [1, 0.1, 0.45, 0.75, 0.8, 0.9, 0.15, 1, 0.75, 0.8, 0.4, 0.2, 1]
@@ -105,18 +105,26 @@ export function analyze(notes: Note[], key: number, scale: ScaleName, bpm: numbe
   }
   const rhythmClarity = clamp(((onGrid / n) * 0.45 + (downbeatHits / totalBars) * 0.35 + varietyScore * 0.2) * 10, 0, 10)
 
-  // --- モチーフ反復度: 4音 n-gram (度数差 + 音価) の重複率 ---
-  const grams = new Map<string, number>()
+  // --- モチーフ反復度 ---
+  //  4音の「音階度数の差 + 16分単位の発音間隔」パターンが曲中で2回以上現れるとき、
+  //  そのパターンに含まれる音を「反復に属する音」とし、全音符に占める割合を求める。
+  //  度数(ディグリー)で比べるので、反復進行(音型ごと音階上を平行移動)も反復として数える。
+  const pool = scaleNotes(key, scale)
+  const deg = midis.map((m) => degreeIndex(m, pool))
+  const ioi = (i: number) => Math.round(((ns[i].startTime - ns[i - 1].startTime) / spb) * 4)
+  const gramAt = new Map<string, number[]>()
   for (let i = 0; i + 3 < n; i++) {
-    const g = [1, 2, 3].map((k) => `${midis[i + k] - midis[i + k - 1]}/${Math.round((ns[i + k].startTime - ns[i + k - 1].startTime) / spb * 4)}`).join(',')
-    grams.set(g, (grams.get(g) ?? 0) + 1)
+    const g = [1, 2, 3].map((k) => `${deg[i + k] - deg[i + k - 1]}/${ioi(i + k)}`).join(',')
+    const arr = gramAt.get(g)
+    if (arr) arr.push(i)
+    else gramAt.set(g, [i])
   }
-  let repeated = 0, totalG = 0
-  grams.forEach((c) => {
-    totalG += c
-    if (c > 1) repeated += c
+  const covered = new Uint8Array(n)
+  gramAt.forEach((starts) => {
+    if (starts.length < 2) return
+    starts.forEach((i) => { for (let k = 0; k < 4; k++) covered[i + k] = 1 })
   })
-  const motifRepetition = totalG ? repeated / totalG : 0
+  const motifRepetition = n >= 8 ? covered.reduce((a, b) => a + b, 0) / n : 0
 
   // --- 音素材利用率: スケール音のうち実際に使われた割合 ---
   const usedPcs = new Set(midis.filter((m) => inScale(m, key, scale)).map((m) => ((m - key) % 12 + 12) % 12))
@@ -132,7 +140,7 @@ export function analyze(notes: Note[], key: number, scale: ScaleName, bpm: numbe
   let character = ''
   if (smoothness > 7 && harmony > 7) character = '歌いやすく穏やかなメロディ'
   else if (leapRatio > 0.35) character = '跳躍の多いドラマチックなメロディ'
-  else if (motifRepetition > 0.35) character = 'モチーフが印象に残るキャッチーな構成'
+  else if (motifRepetition > 0.55) character = 'モチーフが印象に残るキャッチーな構成'
   else if (rhythmClarity < 5) character = 'リズムが揺らぐ自由な即興風'
   else if (harmony < 5) character = 'スケール外の音を含む実験的なメロディ'
   else character = 'バランスの取れたメロディ'

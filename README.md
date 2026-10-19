@@ -20,6 +20,7 @@
 | Live モード | 作曲後にスライダーを動かすと 120ms デバウンスでブラウザ内再作曲し即反映（同シード）。分析値の変化を Δ バッジで表示 |
 | モーション層 (v3) | 中点変位の再帰描画スプラッシュ / 可変ウェイト ProximityWord / ScrambleText / マグネティックボタン / スポットライト / 作曲パイプライン・オーバーレイ → 楽式リビール / AI領域スイープ / 鍵盤パーティクル |
 | インフォグラフィック | レーダー（前回結果ゴースト付き）、目盛りゲージ、再生連動の楽式タイムライン（現在フレーズ発光 + ヘッド線）、ピッチホイール、音程ヒストグラム |
+| Now Playing | 再生中・演奏中に、鳴っている音名を巨大アウトライン文字で表示（強さで文字の太さ、上行/下行で入ってくる方向が変わる）+ 音程名・楽式フレーズ・拍の HUD |
 | UX | 初回コーチマーク、`:focus-visible` リング、デスクトップは3カラム sticky + 内部スクロール、ピアノロールのホバー十字線・ベロシティバー |
 | 保存 | localStorage 自動保存 + Standard MIDI File (.mid) ダウンロード |
 
@@ -68,6 +69,7 @@ interface Note { id: string; midiNoteNumber: number; startTime: number; duration
 npm run build      # クライアント(Vite+React+Tailwind) → public/static, サーバー → dist
 pm2 start ecosystem.config.cjs   # wrangler pages dev :3000
 ```
+- アルゴリズム計測: `npx esbuild scripts/bench.ts --bundle --platform=node --outfile=/tmp/bench.cjs && node /tmp/bench.cjs`
 - デバッグ: `/?debug=overlay` / `/?debug=reveal` で作曲オーバーレイ・楽式リビールを固定表示
 
 ## 未実装 / 次のステップ
