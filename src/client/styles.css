@@ -379,3 +379,23 @@ button:focus:not(:focus-visible), input:focus:not(:focus-visible) { outline: non
 }
 .np-big sup { font-size: .26em; margin-top: .25em; -webkit-text-stroke: 1px var(--c, #ff5bd6); letter-spacing: 0; }
 
+
+/* ---------- Splash v4 ---------- */
+/* フィルムグレイン (SVG ノイズを微小にずらし続ける) */
+.splash-grain {
+  inset: -10%; opacity: .06;
+  background-image: var(--noise); background-size: 128px 128px;
+  /* 静止グレイン (アニメさせると全画面の再合成で重い) */
+}
+@keyframes grain { 0% { transform: translate(0, 0); } 25% { transform: translate(-3%, 2%); } 50% { transform: translate(2%, -3%); } 75% { transform: translate(-2%, -1%); } 100% { transform: translate(0, 0); } }
+/* CTA: 拍に合わせて広がるリング */
+.splash-cta::after {
+  content: ''; position: absolute; inset: -2px; border-radius: inherit; pointer-events: none;
+  border: 1px solid rgba(255, 91, 214, .7); animation: cta-ring 2.14s var(--ease) infinite;
+}
+@keyframes cta-ring { 0% { transform: scale(1); opacity: .9; } 70%, 100% { transform: scale(1.35, 1.7); opacity: 0; } }
+/* 退場: タイトル文字が上へ抜け、画面全体が上方向にワイプ */
+.splash-leaving [data-l] { transition: transform .6s var(--ease), opacity .5s; transform: translateY(-110%) !important; opacity: 0; }
+.splash-leaving .splash-fade { transition: opacity .35s, transform .5s var(--ease); opacity: 0; transform: translateY(-14px); }
+.wipe-out { animation: wipe-out .9s var(--ease) .25s forwards; }
+@media (prefers-reduced-motion: reduce) { .splash-grain, .splash-cta::after { animation: none; } }

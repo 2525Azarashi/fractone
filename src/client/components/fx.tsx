@@ -101,7 +101,7 @@ export function useSpotlight() {
 /* ------------------------------------------------------------------
  * ProximityWord — カーソルとの距離で文字の太さ(可変フォント)と位置が変化
  * ------------------------------------------------------------------ */
-export function ProximityWord({ text, className = '', gradient = false, min = 260, max = 760, radius = 260, delay = 0 }: { text: string; className?: string; gradient?: boolean; min?: number; max?: number; radius?: number; delay?: number }) {
+export function ProximityWord({ text, className = '', gradient = false, min = 260, max = 760, radius = 260, delay = 0, wave = 0, phase = 0 }: { text: string; className?: string; gradient?: boolean; min?: number; max?: number; radius?: number; delay?: number; /** 0-1: カーソルが無くても文字ごとにウェイトが波打つ強さ */ wave?: number; phase?: number }) {
   const wrap = useRef<HTMLSpanElement>(null)
   useEffect(() => {
     const el = wrap.current
@@ -115,15 +115,38 @@ export function ProximityWord({ text, className = '', gradient = false, min = 26
       mx = e.clientX
       my = e.clientY
     }
-    const tick = () => {
+    // 文字の中心座標はキャッシュ (毎フレーム getBoundingClientRect するとレイアウトが走る)
+    // 親の kt-mask を測るので、自分の transform に影響されない
+    let centers: { x: number; y: number }[] = []
+    let dirty = true
+    const measure = () => {
+      centers = letters.map((l) => {
+        const r = (l.parentElement?.parentElement ?? l).getBoundingClientRect()
+        return { x: r.left + r.width / 2, y: r.top + r.height / 2 }
+      })
+      dirty = false
+    }
+    const markDirty = () => { dirty = true }
+    window.addEventListener('resize', markDirty)
+    window.addEventListener('scroll', markDirty, { passive: true })
+    const remeasure = window.setInterval(markDirty, 1000) // 登場アニメ・フォント読込後の位置ずれ対策
+    const t0 = performance.now()
+    const tick = (now: number) => {
+      const tt = (now - t0) / 1000
+      if (dirty) measure()
       letters.forEach((l, i) => {
-        const r = l.getBoundingClientRect()
-        const d = Math.hypot(mx - (r.left + r.width / 2), my - (r.top + r.height / 2))
+        const c = centers[i]
+        const d = Math.hypot(mx - c.x, my - c.y)
         const k = Math.max(0, 1 - d / radius)
-        target[i] = min + (max - min) * k * k
+        // 待機中の波: 文字ごとに位相をずらしたウェイトのうねり (登場アニメ後に立ち上がる)
+        const w = wave * Math.min(1, Math.max(0, tt - 1.2)) * (0.5 + 0.5 * Math.sin(tt * 2.1 - (i + phase) * 0.75))
+        target[i] = min + (max - min) * Math.max(k * k, w)
+        const prev = cur[i]
         cur[i] += (target[i] - cur[i]) * 0.14
-        l.style.fontVariationSettings = `'wght' ${cur[i].toFixed(0)}`
-        l.style.transform = `translateY(${(-k * 0.06).toFixed(3)}em)`
+        if (Math.abs(cur[i] - prev) > 0.5 || k > 0) {
+          l.style.fontVariationSettings = `'wght' ${cur[i].toFixed(0)}`
+          l.style.transform = `translateY(${(-k * 0.06).toFixed(3)}em)`
+        }
       })
       raf = requestAnimationFrame(tick)
     }
@@ -131,9 +154,12 @@ export function ProximityWord({ text, className = '', gradient = false, min = 26
     raf = requestAnimationFrame(tick)
     return () => {
       window.removeEventListener('pointermove', onMove)
+      window.removeEventListener('resize', markDirty)
+      window.removeEventListener('scroll', markDirty)
+      clearInterval(remeasure)
       cancelAnimationFrame(raf)
     }
-  }, [min, max, radius])
+  }, [min, max, radius, wave, phase])
   const chars = Array.from(text)
   return (
     <span ref={wrap} className={`inline-block ${className}`} aria-label={text}>
@@ -145,6 +171,7 @@ export function ProximityWord({ text, className = '', gradient = false, min = 26
               data-l
               className={`inline-block ${gradient ? 'grad-text' : ''}`}
               style={{
+                transitionDelay: `${(delay / 4 + i * 40).toFixed(0)}ms`,
                 fontVariationSettings: `'wght' ${min}`,
                 ...(gradient ? { backgroundSize: `${chars.length * 100}% 100%`, backgroundPosition: `${chars.length > 1 ? (i / (chars.length - 1)) * 100 : 0}% 0` } : {}),
               }}
