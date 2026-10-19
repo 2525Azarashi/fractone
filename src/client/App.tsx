@@ -24,6 +24,10 @@ import { useSpotlight } from './components/fx'
 import { ComposeDock } from './components/ComposeDock'
 import { NowPlaying } from './components/NowPlaying'
 import { IBars, IChevL, IChevR, IRoll, ISliders, IWave } from './components/icons'
+import { Toaster, useToaster, PullToRefresh, type ToastItem } from './components/patterns'
+import { CommandPalette, type Cmd } from './components/CommandPalette'
+import { TakesSheet, type Take } from './components/TakesSheet'
+import { INSTRUMENTS } from '../lib/audio-engine'
 import { setIdlePosition } from './hooks/useTransport'
 
 const TABS: { id: Tab; label: string; icon: (p: { size?: number; className?: string }) => JSX.Element }[] = [
@@ -38,14 +42,19 @@ const OVERLAY_MS = 1250
 const DEBUG = typeof location !== 'undefined' ? new URLSearchParams(location.search).get('debug') : null
 const analyzeNow = (seq: Note[], p: ComposeParams) => analyze(seq, p.key, p.scale, p.bpm, p.timeSig)
 
-interface Toast { id: number; text: string; tone: 'mag' | 'cy' | 'mint' }
 
 export default function App() {
   const [state, dispatch] = useReducer(reducer, undefined, initState)
   const stateRef = useRef(state)
   useSpotlight()
   stateRef.current = state
-  const [toasts, setToasts] = useState<Toast[]>([])
+  const toaster = useToaster()
+  const [palette, setPalette] = useState(false)
+  const [sheet, setSheet] = useState(false)
+  const [takes, setTakes] = useState<Take[]>(() => { try { return JSON.parse(localStorage.getItem('fractone:takes') || '[]') } catch { return [] } })
+  const [currentTake, setCurrentTake] = useState<string | null>(null)
+  const overlayRef = useRef(false)
+  overlayRef.current = palette || sheet
   const [splash, setSplash] = useState(true)
   const [help, setHelp] = useState(false)
   const [coach, setCoach] = useState(() => { try { return !localStorage.getItem('fractone:coached') } catch { return false } })
@@ -57,11 +66,14 @@ export default function App() {
   const lastMode = useRef<'continue' | 'new'>('continue')
   const volBeforeMute = useRef(0.75)
 
-  const toast = useCallback((text: string, tone: Toast['tone'] = 'mag') => {
-    const id = Date.now() + Math.random()
-    setToasts((t) => [...t.slice(-3), { id, text, tone }])
-    setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), 2800)
-  }, [])
+  const toast = useCallback((text: string, tone: ToastItem['tone'] = 'mag', opt?: { action?: ToastItem['action']; ms?: number }) => {
+    toaster.push(text, tone, opt)
+  }, [toaster.push]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // テイクの永続化 (最大 24 件・お気に入りは優先して残す)
+  useEffect(() => {
+    try { localStorage.setItem('fractone:takes', JSON.stringify(takes.slice(0, 24))) } catch {}
+  }, [takes])
 
   // ---- オーディオ設定の反映 / 可視化コールバック ----
   useEffect(() => audio.update(state.audio), [state.audio])
@@ -208,10 +220,24 @@ export default function App() {
     dispatch({ type: 'result', result })
     dispatch({ type: 'status', status: 'done' })
     setReveal(result)
+    // テイクとして保存
+    {
+      const a = analyzeNow(next, params)
+      const take: Take = {
+        id: uid('t'), at: Date.now(), seed: params.seed, mode, key: params.key, scale: params.scale, bpm: params.bpm, notes: next, fav: false,
+        name: `${mode === 'continue' ? 'Continue' : 'New'} · ${result.form.map((f) => f.label).join(' ')}`,
+        stats: { harmony: a.harmony, motif: a.motifRepetition, smooth: a.smoothness },
+      }
+      setTakes((ts) => {
+        const favs = ts.filter((t) => t.fav), rest = ts.filter((t) => !t.fav)
+        return [take, ...favs, ...rest].slice(0, 24)
+      })
+      setCurrentTake(take.id)
+    }
     setCoach(false)
     try { localStorage.setItem('fractone:coached', '1') } catch {}
     setTimeout(() => setReveal(null), 1900)
-    toast(`${result.notes.length} 音符を作曲 · Live ON でスライダーが即反映`, 'cy')
+    toast(`${result.notes.length} 音符を作曲 · テイクに保存しました`, 'cy', { action: { label: 'テイク一覧', run: () => setSheet(true) } })
     // 生成部分の頭から試聴
     const from = mode === 'continue' ? Math.max(0, result.startBeat * (60 / params.bpm) - (60 / params.bpm) * TIME_SIGS[params.timeSig].beatsPerBar) : 0
     dispatch({ type: 'cursor', t: from })
@@ -233,8 +259,11 @@ export default function App() {
   // ---------------- 編集 ----------------
   const deleteSelected = useCallback(() => {
     const s = stateRef.current
-    if (s.selected.length) dispatch({ type: 'removeNotes', ids: s.selected })
-  }, [])
+    if (!s.selected.length) return
+    const n = s.selected.length
+    dispatch({ type: 'removeNotes', ids: s.selected })
+    toast(`${n} 音符を削除`, 'warn', { action: { label: '元に戻す', run: () => dispatch({ type: 'undo' }) } })
+  }, [toast])
 
   const quantize = useCallback(() => {
     const s = stateRef.current
@@ -274,10 +303,14 @@ export default function App() {
   }, [toast])
 
   const clearAll = useCallback(() => {
+    const s = stateRef.current
+    if (!s.sequence.length) return
+    const n = s.sequence.length
     stopAll(true)
     dispatch({ type: 'setSequence', seq: [] })
     dispatch({ type: 'result', result: null })
-  }, [stopAll])
+    toast(`${n} 音符を消去しました`, 'warn', { action: { label: '元に戻す', run: () => dispatch({ type: 'undo' }) } })
+  }, [stopAll, toast])
 
   // ---------------- PCキーボード ----------------
   useEffect(() => {
@@ -287,8 +320,10 @@ export default function App() {
     }
     const down = (e: KeyboardEvent) => {
       if (isField(e) && (e.target as HTMLInputElement).type !== 'range') return
+      if (overlayRef.current) return // パレット / シート表示中は演奏ショートカットを止める
       const s = stateRef.current
       const k = e.key.toLowerCase()
+      if (k === '/' || ((e.ctrlKey || e.metaKey) && k === 'k')) { e.preventDefault(); setPalette(true); return }
       if ((e.ctrlKey || e.metaKey) && k === 'z') {
         e.preventDefault()
         dispatch({ type: e.shiftKey ? 'redo' : 'undo' })
@@ -380,12 +415,65 @@ export default function App() {
   const high = vw < 640 ? low + 11 : (state.baseOctave + 1) * 12 + 24
   const busy = state.status === 'composing'
 
+  const loadTake = useCallback((t: Take) => {
+    stopAll(true)
+    dispatch({ type: 'params', patch: { key: t.key, scale: t.scale, seed: t.seed, bpm: t.bpm } })
+    dispatch({ type: 'setSequence', seq: t.notes.map((n) => ({ ...n })) })
+    dispatch({ type: 'result', result: null })
+    setCurrentTake(t.id)
+    setSheet(false)
+    toast(`「${t.name}」を読み込みました`, 'mint', { action: { label: '再生', run: () => setTimeout(() => togglePlay(), 30) } })
+  }, [stopAll, toast, togglePlay])
+
+  // ---- Auto Complete (コマンドパレット) の候補 ----
+  const commands = useMemo<Cmd[]>(() => {
+    const p = (patch: Partial<ComposeParams>) => dispatch({ type: 'params', patch })
+    const list: Cmd[] = [
+      { id: 'continue', group: 'Compose', title: '続きを作曲', keys: 'continue compose tsuzuki', hint: 'モチーフを検出して中点変位で展開', run: () => runCompose('continue') },
+      { id: 'new', group: 'Compose', title: '新規生成', keys: 'new generate shinki', hint: 'モチーフを新しく作って作曲', run: () => runCompose('new') },
+      { id: 'reroll', group: 'Compose', title: '別案 (シードを変えて再作曲)', keys: 'reroll seed betsuan dice', run: () => runCompose(lastMode.current, Math.floor(Math.random() * 99999)) },
+      { id: 'accept', group: 'Compose', title: 'AI の音符を採用', keys: 'accept adopt saiyou', run: acceptAi },
+      { id: 'takes', group: 'Compose', title: 'テイク・ライブラリを開く', keys: 'takes library take', hint: `${takes.length} 件`, run: () => setSheet(true) },
+      { id: 'play', group: 'Transport', title: '再生 / 一時停止', keys: 'play pause saisei space', run: togglePlay },
+      { id: 'stop', group: 'Transport', title: '停止して先頭へ', keys: 'stop teishi', run: () => stopAll(true) },
+      { id: 'rec', group: 'Transport', title: '録音', keys: 'record rokuon', run: toggleRecord },
+      { id: 'loop', group: 'Transport', title: 'ループ切替', keys: 'loop', run: () => dispatch({ type: 'toggle', key: 'loop' }) },
+      { id: 'metro', group: 'Transport', title: 'メトロノーム切替', keys: 'metronome click', run: () => dispatch({ type: 'audio', patch: { metronome: !stateRef.current.audio.metronome } }) },
+      { id: 'live', group: 'Transport', title: 'Live モード切替', keys: 'live', run: () => dispatch({ type: 'toggle', key: 'live' }) },
+      { id: 'bpm', group: 'Parameter', title: 'テンポ (BPM)', keys: 'bpm tempo', hint: '例: bpm 128', arg: { min: 50, max: 200, unit: ' bpm' }, run: (v) => p({ bpm: v! }) },
+      { id: 'bars', group: 'Parameter', title: '基長 (小節数)', keys: 'bars length kichou', hint: '例: bars 12', arg: { min: 2, max: 16, unit: ' bars' }, run: (v) => p({ bars: v! }) },
+      { id: 'range', group: 'Parameter', title: '音域幅', keys: 'range oniki', hint: '例: range 18', arg: { min: 5, max: 24, unit: ' st' }, run: (v) => p({ range: v! }) },
+      { id: 'disp', group: 'Parameter', title: '変位強度', keys: 'displacement heni', hint: '例: 変位 70 (%)', arg: { min: 0, max: 100, unit: '%' }, run: (v) => p({ displacement: v! / 100 }) },
+      { id: 'depth', group: 'Parameter', title: '分解深度', keys: 'depth bunkai', hint: '例: depth 5', arg: { min: 1, max: 7, unit: '' }, run: (v) => p({ depth: v! }) },
+      { id: 'motif', group: 'Parameter', title: 'モチーフ反復度', keys: 'motif repeat hanpuku', hint: '例: motif 90 (%)', arg: { min: 0, max: 100, unit: '%' }, run: (v) => p({ motifStrength: v! / 100 }) },
+      { id: 'seed', group: 'Parameter', title: 'シード', keys: 'seed', hint: '例: seed 1234', arg: { min: 0, max: 99999, unit: '' }, run: (v) => p({ seed: v! }) },
+      { id: 'midi', group: 'File', title: 'MIDI に書き出す', keys: 'export midi save hozon', run: save },
+      { id: 'quant', group: 'Edit', title: 'クオンタイズ', keys: 'quantize', run: quantize },
+      { id: 'undo', group: 'Edit', title: '元に戻す', keys: 'undo', run: () => dispatch({ type: 'undo' }) },
+      { id: 'clear', group: 'Edit', title: '全消去', keys: 'clear delete all', run: clearAll },
+      { id: 'help', group: 'Edit', title: 'ショートカット一覧', keys: 'help shortcut', run: () => setHelp(true) },
+    ]
+    ;(['roll', 'pitch', 'rhythm', 'audio'] as Tab[]).forEach((t, i) => list.push({ id: `tab-${t}`, group: 'View', title: `${TABS[i].label} を表示`, keys: t, run: () => dispatch({ type: 'tab', tab: t }) }))
+    // キー × スケール
+    Object.entries(SCALES).forEach(([sc, def]) => {
+      NOTE_NAMES.forEach((nn, k) => list.push({ id: `key-${k}-${sc}`, group: 'Key', title: `${nn} ${def.label}`, keys: `${nn}${def.label} key`, run: () => p({ key: k, scale: sc as ComposeParams['scale'] }) }))
+    })
+    ;(['4/4', '3/4', '6/8'] as const).forEach((ts) => list.push({ id: `ts-${ts}`, group: 'Key', title: `拍子 ${ts}`, keys: `time ${ts}`, run: () => p({ timeSig: ts }) }))
+    INSTRUMENTS.forEach((ins) => list.push({ id: `ins-${ins.id}`, group: 'Tone', title: ins.label, keys: `${ins.id} tone instrument`, hint: ins.desc, run: () => dispatch({ type: 'audio', patch: { instrument: ins.id } }) }))
+    takes.slice(0, 8).forEach((t) => list.push({ id: `take-${t.id}`, group: 'Takes', title: t.name, keys: `take ${t.seed}`, hint: `seed ${t.seed}`, run: () => loadTake(t) }))
+    return list
+  }, [runCompose, acceptAi, togglePlay, stopAll, toggleRecord, save, quantize, clearAll, takes, loadTake])
+
   return (
     <div className="relative min-h-screen overflow-x-hidden">
+      <PullToRefresh disabled={splash || busy || palette || sheet || state.status === 'recording'} onRefresh={() => runCompose(lastMode.current, Math.floor(Math.random() * 99999))}>
       <div className="relative z-10 mx-auto flex max-w-[1720px] flex-col gap-4 p-3 md:p-5">
         <Header
           state={state}
           onHelp={() => setHelp(true)}
+          onPalette={() => setPalette(true)}
+          onTakes={() => setSheet(true)}
+          takeCount={takes.length}
           onToggleMute={() => {
             if (state.audio.volume > 0) { volBeforeMute.current = state.audio.volume; dispatch({ type: 'audio', patch: { volume: 0 } }) }
             else dispatch({ type: 'audio', patch: { volume: volBeforeMute.current || 0.75 } })
@@ -460,7 +548,7 @@ export default function App() {
               onClear={clearAll}
             />
 
-            <div className="relative min-h-[300px] flex-1">
+            <div className="relative min-h-[300px] flex-1" data-no-ptr>
               <div key={state.tab} className="fade-up absolute inset-0">
                 {state.tab === 'roll' && <PianoRoll state={state} dispatch={dispatch} />}
                 {state.tab === 'pitch' && <div className="neu-inset h-full rounded-2xl p-3"><PitchViz sequence={state.sequence} result={state.result} bpm={state.params.bpm} keyRoot={state.params.key} scale={state.params.scale} generation={state.generation} /></div>}
@@ -486,7 +574,7 @@ export default function App() {
                 </span>
                 <Toggle on={state.quantizeRec} onChange={() => dispatch({ type: 'toggle', key: 'quantizeRec' })} label="Rec Quantize" />
               </div>
-              <div className="h-[112px] sm:h-[124px]">
+              <div className="h-[112px] sm:h-[124px]" data-no-ptr>
                 <PianoUI low={low} high={high} activeKeys={state.activeKeys} aiKeys={state.aiKeys} baseOctave={state.baseOctave} keyRoot={state.params.key} scale={state.params.scale} onPress={press} onRelease={release} />
               </div>
             </div>
@@ -494,7 +582,7 @@ export default function App() {
 
           {/* ---- 右: 分析 ---- */}
           <aside id="analysis-panel" className="thin-scroll order-3 min-w-0 lg:sticky lg:top-4 lg:h-[calc(100vh-108px)] lg:min-h-[740px] lg:overflow-y-auto lg:pr-1">
-            <AnalysisPanel state={state} analysis={analysis} prev={prevAnalysis.current} result={state.result} />
+            <AnalysisPanel state={state} analysis={analysis} prev={prevAnalysis.current} result={state.result} loading={busy} />
           </aside>
         </main>
 
@@ -503,17 +591,24 @@ export default function App() {
           <span className="num">Built with <span className="text-[var(--tx)]">Hono</span> · React · Web Audio · Cloudflare</span>
         </footer>
       </div>
+      </PullToRefresh>
 
-      {/* toasts */}
-      <div className="pointer-events-none fixed bottom-5 left-1/2 z-50 flex -translate-x-1/2 flex-col items-center gap-2">
-        {toasts.map((t) => (
-          <div key={t.id} className="pop-in flex items-center gap-2.5 rounded-xl border border-[var(--line-2)] bg-[#14101e]/90 px-4 py-2.5 text-[12px] font-medium text-white shadow-2xl backdrop-blur-xl">
-            <i className={`h-1.5 w-1.5 rounded-full ${t.tone === 'cy' ? 'bg-[#4fe3ff]' : t.tone === 'mint' ? 'bg-emerald-300' : 'bg-[#ff5bd6]'}`} />
-            {t.text}
-          </div>
-        ))}
-      </div>
-
+      <Toaster items={toaster.items} dismiss={toaster.dismiss} raised={sheet} />
+      <CommandPalette open={palette} onClose={() => setPalette(false)} commands={commands} />
+      <TakesSheet
+        open={sheet}
+        onClose={() => setSheet(false)}
+        takes={takes}
+        pending={busy}
+        currentId={currentTake}
+        onLoad={loadTake}
+        onFav={(t) => { setTakes((ts) => ts.map((x) => (x.id === t.id ? { ...x, fav: !x.fav } : x))); toast(t.fav ? 'お気に入りを解除' : 'お気に入りに追加', 'warn') }}
+        onDelete={(t) => {
+          setTakes((ts) => ts.filter((x) => x.id !== t.id))
+          toast(`「${t.name}」を削除`, 'warn', { action: { label: '元に戻す', run: () => setTakes((ts) => [t, ...ts]) } })
+        }}
+        onReroll={() => runCompose(lastMode.current, Math.floor(Math.random() * 99999))}
+      />
       {help && <HelpSheet onClose={() => setHelp(false)} />}
       {splash && <Splash onStart={() => { audio.ensure(); [60, 64, 67, 72].forEach((m, i) => setTimeout(() => audio.preview(m, 0.4, 0.55), i * 110)); setSplash(false) }} />}
     </div>
@@ -532,6 +627,7 @@ function HelpSheet({ onClose }: { onClose: () => void }) {
     ['Space', '再生 / 一時停止'], ['R', '録音'], ['Enter', '停止して先頭へ'],
     ['Delete', '選択した音符を削除'], ['↑ ↓ ← →', '選択を移動 (Shift で 1oct)'], ['Ctrl + Z', '元に戻す'],
     ['Double click', '音符を追加'], ['Drag', '移動 / 右端で長さ変更'], ['Ctrl + Wheel', 'ズーム'],
+    ['/  or  Ctrl + K', '検索・コマンド (オートコンプリート)'], ['Pull down', '(タッチ) 引っ張って別案を作曲'],
   ]
   return (
     <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm" onClick={onClose}>

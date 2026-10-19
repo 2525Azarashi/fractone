@@ -43,3 +43,9 @@ export const IWave = mk(<path d="M3 15c2 0 2-6 4.5-6S10 17 12.5 17 15 7 17.5 7 2
 export const IBars = mk(<path d="M5 20V12M10 20V6M15 20v-9M20 20V9" />)
 export const ISliders = mk(<><path d="M4 7h10M18 7h2M4 17h4M12 17h8" /><circle cx="16" cy="7" r="2" /><circle cx="10" cy="17" r="2" /></>)
 export const IKeys = mk(<><rect x="3" y="5" width="18" height="14" rx="2" /><path d="M8 5v8M12 5v14M16 5v8" /></>)
+export const ISearch = mk(<><circle cx="11" cy="11" r="6.5" /><path d="m20 20-4.2-4.2" /></>)
+export const ILib = mk(<><rect x="4" y="4" width="4" height="16" rx="1" /><rect x="10" y="4" width="4" height="16" rx="1" /><path d="m16.5 5.2 3.8-1 3.2 15.5-3.8.9z" transform="translate(-2 0)" /></>)
+export const IStar = mk(<path d="m12 3.8 2.5 5.1 5.6.8-4 4 1 5.6-5.1-2.7-5 2.7 1-5.6-4.1-4 5.6-.8z" />)
+export const IStarF = ({ size, ...r }: P) => <svg {...base(size)} {...r} aria-hidden><path d="m12 3.8 2.5 5.1 5.6.8-4 4 1 5.6-5.1-2.7-5 2.7 1-5.6-4.1-4 5.6-.8z" fill="currentColor" /></svg>
+export const IRefresh = mk(<><path d="M20 11a8 8 0 1 0-2.3 5.7" /><path d="M20 5v6h-6" /></>)
+export const IKey = mk(<><rect x="3" y="6" width="18" height="12" rx="2" /><path d="M7 10h.01M11 10h.01M15 10h.01M7 14h10" /></>)

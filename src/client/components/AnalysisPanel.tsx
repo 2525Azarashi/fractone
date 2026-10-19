@@ -1,4 +1,5 @@
 // 右パネル: Algorithm Status / 楽典分析 (インフォグラフィック) / モチーフ & 楽式 / シーケンス情報
+import { Skeleton } from './patterns'
 import { memo, useRef } from 'react'
 import { usePlayhead } from '../hooks/useTransport'
 import type { Analysis, ComposeResult, Note } from '../../lib/types'
@@ -119,7 +120,7 @@ function FormTimeline({ result, bpm }: { result: ComposeResult; bpm: number }) {
   )
 }
 
-function AnalysisPanelImpl({ state, analysis, prev, result }: { state: State; analysis: Analysis | null; prev: Analysis | null; result: ComposeResult | null }) {
+function AnalysisPanelImpl({ state, analysis, prev, result, loading = false }: { state: State; analysis: Analysis | null; prev: Analysis | null; result: ComposeResult | null; loading?: boolean }) {
   const a = analysis
   const pv = result ? prev : null
   const dd = (f: (x: Analysis) => number) => (a && pv && pv.noteCount ? f(a) - f(pv) : null)
@@ -166,6 +167,7 @@ function AnalysisPanelImpl({ state, analysis, prev, result }: { state: State; an
       {/* ---- Analysis ---- */}
       <Card className="p-5" delay={140}>
         <SectionTitle index="04" en="Analysis" title="楽典分析" />
+        {loading ? <AnalysisSkeleton /> : <>
         <div className="grid grid-cols-3">
           {[
             { v: a?.harmony ?? 0, l: 'ハーモニー', c: '#4fe3ff', s: 'Harmony', d: dd((x) => x.harmony) },
@@ -215,12 +217,20 @@ function AnalysisPanelImpl({ state, analysis, prev, result }: { state: State; an
             </div>
           </div>
         )}
+        </>}
       </Card>
 
       {/* ---- Motif ---- */}
       <Card className="p-5" delay={200}>
         <SectionTitle index="05" en="Motif & Form" title="モチーフと楽式" />
-        {result?.motif ? (
+        {loading ? (
+          <div className="flex flex-col gap-2.5" aria-busy="true">
+            <div className="flex justify-between"><Skeleton className="h-3 w-24" /><Skeleton className="h-3 w-16" /></div>
+            <Skeleton className="h-16 w-full rounded-xl" />
+            <Skeleton className="h-10 w-full rounded-lg" />
+            <div className="grid grid-cols-4 gap-1">{Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-11 rounded-lg" />)}</div>
+          </div>
+        ) : result?.motif ? (
           <>
             <div className="flex items-center justify-between">
               <span className="text-[11.5px] text-[var(--tx-2)]">
@@ -285,4 +295,26 @@ function AnalysisPanelImpl({ state, analysis, prev, result }: { state: State; an
     </div>
   )
 }
+/** 作曲中: 分析カードの骨格をシマー付きで表示 (レイアウトを崩さず「計算中」を伝える) */
+function AnalysisSkeleton() {
+  return (
+    <div aria-busy="true" aria-label="分析中">
+      <div className="grid grid-cols-3 justify-items-center gap-2">
+        {Array.from({ length: 3 }).map((_, i) => (
+          <div key={i} className="flex flex-col items-center gap-2">
+            <Skeleton className="h-[74px] w-[74px] rounded-full" style={{ animationDelay: `${i * 120}ms` }} />
+            <Skeleton className="h-2.5 w-14" />
+          </div>
+        ))}
+      </div>
+      <Skeleton className="mt-4 h-[200px] w-full rounded-xl" />
+      <div className="mt-4 flex flex-col gap-3">
+        {Array.from({ length: 6 }).map((_, i) => (
+          <div key={i} className="flex justify-between"><Skeleton className="h-3" style={{ width: `${38 + ((i * 17) % 30)}%` }} /><Skeleton className="h-3 w-10" /></div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 export const AnalysisPanel = memo(AnalysisPanelImpl)

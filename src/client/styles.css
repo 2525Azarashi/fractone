@@ -399,3 +399,49 @@ button:focus:not(:focus-visible), input:focus:not(:focus-visible) { outline: non
 .splash-leaving .splash-fade { transition: opacity .35s, transform .5s var(--ease); opacity: 0; transform: translateY(-14px); }
 .wipe-out { animation: wipe-out .9s var(--ease) .25s forwards; }
 @media (prefers-reduced-motion: reduce) { .splash-grain, .splash-cta::after { animation: none; } }
+
+/* ================= Mobile patterns ================= */
+/* Toast */
+.toast-card { transition: transform .45s var(--spring), opacity .3s var(--ease); transform: translateY(calc(var(--depth) * 4px)) scale(calc(1 - var(--depth) * .035)); }
+.toast-in { animation: toast-in .55s var(--spring) both; }
+@keyframes toast-in { from { transform: translateY(24px) scale(.92); opacity: 0; filter: blur(4px); } }
+.toast-out { animation: toast-out .32s var(--ease) forwards; }
+@keyframes toast-out { to { transform: translateY(14px) scale(.94); opacity: 0; } }
+.toast-out-r { animation: toast-out-r .32s var(--ease) forwards; }
+.toast-out-l { animation: toast-out-l .32s var(--ease) forwards; }
+@keyframes toast-out-r { to { transform: translateX(120%) rotate(8deg); opacity: 0; } }
+@keyframes toast-out-l { to { transform: translateX(-120%) rotate(-8deg); opacity: 0; } }
+.toast-timer { width: 100%; transform-origin: left; animation: toast-timer linear forwards; opacity: .7; }
+@keyframes toast-timer { from { transform: scaleX(1); } to { transform: scaleX(0); } }
+
+/* Skeleton: 斜めに走るシマー */
+.skeleton {
+  background: linear-gradient(100deg, rgba(255,255,255,.045) 30%, rgba(255,255,255,.11) 50%, rgba(255,255,255,.045) 70%);
+  background-size: 300% 100%; animation: shimmer 1.4s linear infinite;
+}
+@keyframes shimmer { from { background-position: 100% 0; } to { background-position: -50% 0; } }
+
+/* Bottom sheet */
+.sheet-scrim { opacity: 0; transition: opacity .35s var(--ease); }
+.sheet-scrim.on { opacity: 1; }
+.sheet { transform: translateY(105%); transition: transform .5s var(--spring), height .45s var(--spring); will-change: transform; }
+.sheet.on { transform: none; }
+.take-in { animation: fade-up .5s var(--ease) both; animation-delay: calc(var(--i) * 45ms + 120ms); }
+
+/* Swipe row: 削除時は高さを畳む */
+.swipe-row { display: grid; grid-template-rows: 1fr; transition: grid-template-rows .3s var(--ease) .18s, opacity .3s .18s, margin .3s .18s; }
+.swipe-row > * { min-height: 0; }
+.swipe-row.gone { grid-template-rows: 0fr; opacity: 0; margin-top: -8px; }
+
+/* Pull to refresh */
+.ptr-busy { animation: ptr-busy 1.1s var(--ease) infinite; }
+@keyframes ptr-busy { 0%, 100% { transform: scaleY(1); } 50% { transform: scaleY(-1); } }
+
+/* Command palette */
+.palette-in { animation: palette-in .4s var(--spring) both; }
+@keyframes palette-in { from { transform: translateY(-14px) scale(.97); opacity: 0; } }
+.palette-row { animation: fade-up .35s var(--ease) both; animation-delay: calc(var(--i) * 18ms); }
+
+/* 分析パネルの再計算中 (作曲中) */
+.panel-loading { position: relative; }
+@media (prefers-reduced-motion: reduce) { .skeleton, .toast-in, .palette-row, .take-in { animation: none; } }

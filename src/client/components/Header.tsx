@@ -5,9 +5,9 @@ import { fmtTime, usePlayhead } from '../hooks/useTransport'
 import { KineticText } from './ui'
 import type { State } from '../state'
 import { NOTE_NAMES, SCALES, TIME_SIGS } from '../../lib/theory'
-import { IMute, IVol } from './icons'
+import { IMute, IVol, ISearch, ILib } from './icons'
 
-export function Header({ state, onToggleMute, onHelp }: { state: State; onToggleMute: () => void; onHelp: () => void }) {
+export function Header({ state, onToggleMute, onHelp, onPalette, onTakes, takeCount }: { state: State; onToggleMute: () => void; onHelp: () => void; onPalette: () => void; onTakes: () => void; takeCount: number }) {
   const timeRef = useRef<HTMLSpanElement>(null)
   const barRef = useRef<HTMLSpanElement>(null)
   const meterRef = useRef<HTMLDivElement>(null)
@@ -71,6 +71,17 @@ export function Header({ state, onToggleMute, onHelp }: { state: State; onToggle
             ))}
           </div>
         </div>
+        {/* Auto Complete: コマンドパレット */}
+        <button onClick={onPalette} className="neu-btn hidden h-9 items-center gap-2 rounded-xl pl-3 pr-2 text-[11.5px] text-[var(--tx-3)] md:flex" aria-label="コマンドを検索">
+          <ISearch size={14} />
+          <span className="w-28 text-left">検索・コマンド</span>
+          <kbd className="num rounded border border-[var(--line-2)] px-1.5 text-[10px]">/</kbd>
+        </button>
+        <button onClick={onPalette} className="neu-btn grid h-9 w-9 place-items-center rounded-xl md:hidden" aria-label="コマンドを検索"><ISearch size={15} /></button>
+        <button onClick={onTakes} className="neu-btn relative grid h-9 w-9 place-items-center rounded-xl" aria-label="テイク・ライブラリ" title="テイク・ライブラリ">
+          <ILib size={16} />
+          {takeCount > 0 && <span key={takeCount} className="pop-in num absolute -right-1 -top-1 grid h-4 min-w-4 place-items-center rounded-full bg-[#ff5bd6] px-1 text-[9px] font-semibold text-white">{takeCount}</span>}
+        </button>
         <button onClick={onHelp} className="neu-btn grid h-9 w-9 place-items-center rounded-xl text-[13px] font-semibold" aria-label="ショートカット" title="ショートカット">?</button>
         <button onClick={onToggleMute} className="neu-btn grid h-9 w-9 place-items-center rounded-xl" aria-label="音声出力" title="音声出力 ON/OFF">
           {muted ? <IMute size={16} /> : <IVol size={16} />}
