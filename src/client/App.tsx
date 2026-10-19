@@ -22,6 +22,7 @@ import { Splash } from './components/Splash'
 import { ComposeOverlay, FormReveal } from './components/ComposeOverlay'
 import { useSpotlight } from './components/fx'
 import { ComposeDock } from './components/ComposeDock'
+import { NowPlaying } from './components/NowPlaying'
 import { IBars, IChevL, IChevR, IRoll, ISliders, IWave } from './components/icons'
 import { setIdlePosition } from './hooks/useTransport'
 
@@ -466,6 +467,7 @@ export default function App() {
                 {state.tab === 'rhythm' && <RhythmViz sequence={state.sequence} bpm={state.params.bpm} timeSig={state.params.timeSig} analysis={analysis} generation={state.generation} />}
                 {state.tab === 'audio' && <AudioPanel settings={state.audio} dispatch={dispatch} />}
               </div>
+              {state.tab !== 'audio' && <NowPlaying sequence={state.sequence} bpm={state.params.bpm} beatsPerBar={TIME_SIGS[state.params.timeSig].beatsPerBar} form={state.result?.form ?? null} activeKeys={state.activeKeys} />}
               {(burst || DEBUG === 'overlay') && <ComposeOverlay depth={burst?.depth ?? 5} mode={burst?.mode ?? 'continue'} seed={burst?.seed ?? 7} total={DEBUG === 'overlay' ? 4000 : OVERLAY_MS} />}
               {(reveal || (DEBUG === 'reveal' && state.result)) && state.tab === 'roll' && <FormReveal result={(reveal ?? state.result)!} />}
             </div>

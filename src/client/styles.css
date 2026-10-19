@@ -361,3 +361,21 @@ button:focus:not(:focus-visible), input:focus:not(:focus-visible) { outline: non
 @media (max-width: 1023px) {
   #param-panel, #analysis-panel { -webkit-mask-image: none; mask-image: none; padding-bottom: 0; }
 }
+
+/* ---------- NowPlaying: 再生中キネティック・タイポ ---------- */
+.np-root { opacity: 0; transition: opacity .6s var(--ease); }
+.np-root.np-on { opacity: 1; }
+.np-hud { transform: translateY(-8px) scale(.97); opacity: 0; transition: transform .6s var(--spring), opacity .4s var(--ease); }
+.np-on .np-hud { transform: none; opacity: 1; }
+.np-big {
+  position: absolute; left: 50%; top: 52%;
+  display: flex; align-items: flex-start; gap: .04em;
+  font-family: var(--font-display); line-height: .8; letter-spacing: -.04em;
+  font-size: clamp(140px, 26vw, 360px);
+  color: transparent; -webkit-text-stroke: 1.5px var(--c, #ff5bd6);
+  font-variation-settings: "wght" var(--w, 500);
+  transform: translate(-50%, -50%); opacity: 0;
+  white-space: nowrap; will-change: transform, opacity; contain: layout style;
+}
+.np-big sup { font-size: .26em; margin-top: .25em; -webkit-text-stroke: 1px var(--c, #ff5bd6); letter-spacing: 0; }
+
