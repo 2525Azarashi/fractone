@@ -28,8 +28,8 @@ function RhythmVizImpl({ sequence, bpm, timeSig, analysis, generation }: { seque
     <div className="grid h-full grid-rows-[1fr_auto] gap-3" key={generation}>
       <div className="thin-scroll neu-inset overflow-auto rounded-2xl p-3">
         <div className="mb-2 flex items-center gap-3 text-[10px] font-medium text-[var(--tx-3)]">
-          <span className="eyebrow">Step grid · 1/16</span>
-          <span className="flex items-center gap-1"><i className="h-2 w-2 rounded-sm bg-[#ff5bd6]" />You</span>
+          <span className="text-[11px] text-[var(--tx-2)]">16分音符のグリッド</span>
+          <span className="flex items-center gap-1"><i className="h-2 w-2 rounded-sm bg-[#ff5bd6]" />あなた</span>
           <span className="flex items-center gap-1"><i className="h-2 w-2 rounded-sm bg-[#4fe3ff]" />AI</span>
           <span className="ml-auto font-mono">{timeSig} · {bpm} BPM</span>
         </div>
@@ -66,7 +66,7 @@ function RhythmVizImpl({ sequence, bpm, timeSig, analysis, generation }: { seque
       </div>
       <div className="grid gap-3 md:grid-cols-[1.5fr_1fr]">
         <div className="neu-inset rounded-2xl p-3">
-          <p className="mb-2 flex justify-between"><span className="eyebrow">Velocity</span><span className="text-[10px] text-[var(--tx-3)]">強弱の流れ / Humanize</span></p>
+          <p className="mb-2 flex justify-between"><span className="text-[11px] text-[var(--tx-2)]">強弱の流れ</span><span /></p>
           <div className="flex h-16 items-end gap-[2px]">
             {sorted.slice(0, 120).map((n, i) => (
               <div key={n.id} className="bar-grow flex-1 rounded-t-sm" style={{ height: `${(n.velocity ?? 0.8) * 100}%`, background: n.source === 'ai' ? '#4fe3ff' : '#ff5bd6', ['--d' as any]: `${i * 8}ms` }} />
@@ -74,7 +74,7 @@ function RhythmVizImpl({ sequence, bpm, timeSig, analysis, generation }: { seque
           </div>
         </div>
         <div className="neu-inset rounded-2xl p-3">
-          <p className="mb-2 flex justify-between"><span className="eyebrow">Duration</span><span className="text-[10px] text-[var(--tx-3)]">音価の分布</span></p>
+          <p className="mb-2 flex justify-between"><span className="text-[11px] text-[var(--tx-2)]">音価の分布</span><span /></p>
           <div className="flex h-16 items-stretch gap-2">
             {(analysis?.durationHist ?? []).map((d, i) => (
               <div key={d.label} className="flex flex-1 flex-col items-center gap-1">

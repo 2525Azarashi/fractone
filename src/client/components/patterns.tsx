@@ -202,7 +202,7 @@ export function BottomSheet({ open, onClose, title, eyebrow, children, footer }:
           <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-white/25" />
           <div className="flex items-end justify-between">
             <div>
-              {eyebrow && <p className="eyebrow">{eyebrow}</p>}
+              {eyebrow && <p className="text-[11px] text-[var(--tx-3)]">{eyebrow}</p>}
               <h3 className="mt-1 font-display text-[20px] font-semibold tracking-tight text-white">{title}</h3>
             </div>
             <button className="btn-ghost rounded-lg px-3 py-1.5 text-[11.5px]" onPointerDown={(e) => e.stopPropagation()} onClick={onClose}>閉じる</button>

@@ -225,7 +225,7 @@ export default function App() {
       const a = analyzeNow(next, params)
       const take: Take = {
         id: uid('t'), at: Date.now(), seed: params.seed, mode, key: params.key, scale: params.scale, bpm: params.bpm, notes: next, fav: false,
-        name: `${mode === 'continue' ? 'Continue' : 'New'} · ${result.form.map((f) => f.label).join(' ')}`,
+        name: `${mode === 'continue' ? '続き' : '新規'} · ${result.form.map((f) => f.label).join(' ')}`,
         stats: { harmony: a.harmony, motif: a.motifRepetition, smooth: a.smoothness },
       }
       setTakes((ts) => {
@@ -429,38 +429,38 @@ export default function App() {
   const commands = useMemo<Cmd[]>(() => {
     const p = (patch: Partial<ComposeParams>) => dispatch({ type: 'params', patch })
     const list: Cmd[] = [
-      { id: 'continue', group: 'Compose', title: '続きを作曲', keys: 'continue compose tsuzuki', hint: 'モチーフを検出して中点変位で展開', run: () => runCompose('continue') },
-      { id: 'new', group: 'Compose', title: '新規生成', keys: 'new generate shinki', hint: 'モチーフを新しく作って作曲', run: () => runCompose('new') },
-      { id: 'reroll', group: 'Compose', title: '別案 (シードを変えて再作曲)', keys: 'reroll seed betsuan dice', run: () => runCompose(lastMode.current, Math.floor(Math.random() * 99999)) },
-      { id: 'accept', group: 'Compose', title: 'AI の音符を採用', keys: 'accept adopt saiyou', run: acceptAi },
-      { id: 'takes', group: 'Compose', title: 'テイク・ライブラリを開く', keys: 'takes library take', hint: `${takes.length} 件`, run: () => setSheet(true) },
-      { id: 'play', group: 'Transport', title: '再生 / 一時停止', keys: 'play pause saisei space', run: togglePlay },
-      { id: 'stop', group: 'Transport', title: '停止して先頭へ', keys: 'stop teishi', run: () => stopAll(true) },
-      { id: 'rec', group: 'Transport', title: '録音', keys: 'record rokuon', run: toggleRecord },
-      { id: 'loop', group: 'Transport', title: 'ループ切替', keys: 'loop', run: () => dispatch({ type: 'toggle', key: 'loop' }) },
-      { id: 'metro', group: 'Transport', title: 'メトロノーム切替', keys: 'metronome click', run: () => dispatch({ type: 'audio', patch: { metronome: !stateRef.current.audio.metronome } }) },
-      { id: 'live', group: 'Transport', title: 'Live モード切替', keys: 'live', run: () => dispatch({ type: 'toggle', key: 'live' }) },
-      { id: 'bpm', group: 'Parameter', title: 'テンポ (BPM)', keys: 'bpm tempo', hint: '例: bpm 128', arg: { min: 50, max: 200, unit: ' bpm' }, run: (v) => p({ bpm: v! }) },
-      { id: 'bars', group: 'Parameter', title: '基長 (小節数)', keys: 'bars length kichou', hint: '例: bars 12', arg: { min: 2, max: 16, unit: ' bars' }, run: (v) => p({ bars: v! }) },
-      { id: 'range', group: 'Parameter', title: '音域幅', keys: 'range oniki', hint: '例: range 18', arg: { min: 5, max: 24, unit: ' st' }, run: (v) => p({ range: v! }) },
-      { id: 'disp', group: 'Parameter', title: '変位強度', keys: 'displacement heni', hint: '例: 変位 70 (%)', arg: { min: 0, max: 100, unit: '%' }, run: (v) => p({ displacement: v! / 100 }) },
-      { id: 'depth', group: 'Parameter', title: '分解深度', keys: 'depth bunkai', hint: '例: depth 5', arg: { min: 1, max: 7, unit: '' }, run: (v) => p({ depth: v! }) },
-      { id: 'motif', group: 'Parameter', title: 'モチーフ反復度', keys: 'motif repeat hanpuku', hint: '例: motif 90 (%)', arg: { min: 0, max: 100, unit: '%' }, run: (v) => p({ motifStrength: v! / 100 }) },
-      { id: 'seed', group: 'Parameter', title: 'シード', keys: 'seed', hint: '例: seed 1234', arg: { min: 0, max: 99999, unit: '' }, run: (v) => p({ seed: v! }) },
-      { id: 'midi', group: 'File', title: 'MIDI に書き出す', keys: 'export midi save hozon', run: save },
-      { id: 'quant', group: 'Edit', title: 'クオンタイズ', keys: 'quantize', run: quantize },
-      { id: 'undo', group: 'Edit', title: '元に戻す', keys: 'undo', run: () => dispatch({ type: 'undo' }) },
-      { id: 'clear', group: 'Edit', title: '全消去', keys: 'clear delete all', run: clearAll },
-      { id: 'help', group: 'Edit', title: 'ショートカット一覧', keys: 'help shortcut', run: () => setHelp(true) },
+      { id: 'continue', group: '作曲', title: '続きを作曲', keys: 'continue compose tsuzuki', hint: 'モチーフを検出して中点変位で展開', run: () => runCompose('continue') },
+      { id: 'new', group: '作曲', title: '新規生成', keys: 'new generate shinki', hint: 'モチーフを新しく作って作曲', run: () => runCompose('new') },
+      { id: 'reroll', group: '作曲', title: '別案 (シードを変えて再作曲)', keys: 'reroll seed betsuan dice', run: () => runCompose(lastMode.current, Math.floor(Math.random() * 99999)) },
+      { id: 'accept', group: '作曲', title: 'AI の音符を採用', keys: 'accept adopt saiyou', run: acceptAi },
+      { id: 'takes', group: '作曲', title: 'テイク・ライブラリを開く', keys: 'takes library take', hint: `${takes.length} 件`, run: () => setSheet(true) },
+      { id: 'play', group: '再生', title: '再生 / 一時停止', keys: 'play pause saisei space', run: togglePlay },
+      { id: 'stop', group: '再生', title: '停止して先頭へ', keys: 'stop teishi', run: () => stopAll(true) },
+      { id: 'rec', group: '再生', title: '録音', keys: 'record rokuon', run: toggleRecord },
+      { id: 'loop', group: '再生', title: 'ループ切替', keys: 'loop', run: () => dispatch({ type: 'toggle', key: 'loop' }) },
+      { id: 'metro', group: '再生', title: 'メトロノーム切替', keys: 'metronome click', run: () => dispatch({ type: 'audio', patch: { metronome: !stateRef.current.audio.metronome } }) },
+      { id: 'live', group: '再生', title: 'Live モード切替', keys: 'live', run: () => dispatch({ type: 'toggle', key: 'live' }) },
+      { id: 'bpm', group: 'パラメータ', title: 'テンポ (BPM)', keys: 'bpm tempo', hint: '例: bpm 128', arg: { min: 50, max: 200, unit: ' bpm' }, run: (v) => p({ bpm: v! }) },
+      { id: 'bars', group: 'パラメータ', title: '基長 (小節数)', keys: 'bars length kichou', hint: '例: bars 12', arg: { min: 2, max: 16, unit: ' bars' }, run: (v) => p({ bars: v! }) },
+      { id: 'range', group: 'パラメータ', title: '音域幅', keys: 'range oniki', hint: '例: range 18', arg: { min: 5, max: 24, unit: ' st' }, run: (v) => p({ range: v! }) },
+      { id: 'disp', group: 'パラメータ', title: '変位強度', keys: 'displacement heni', hint: '例: 変位 70 (%)', arg: { min: 0, max: 100, unit: '%' }, run: (v) => p({ displacement: v! / 100 }) },
+      { id: 'depth', group: 'パラメータ', title: '分解深度', keys: 'depth bunkai', hint: '例: depth 5', arg: { min: 1, max: 7, unit: '' }, run: (v) => p({ depth: v! }) },
+      { id: 'motif', group: 'パラメータ', title: 'モチーフ反復度', keys: 'motif repeat hanpuku', hint: '例: motif 90 (%)', arg: { min: 0, max: 100, unit: '%' }, run: (v) => p({ motifStrength: v! / 100 }) },
+      { id: 'seed', group: 'パラメータ', title: 'シード', keys: 'seed', hint: '例: seed 1234', arg: { min: 0, max: 99999, unit: '' }, run: (v) => p({ seed: v! }) },
+      { id: 'midi', group: 'ファイル', title: 'MIDI に書き出す', keys: 'export midi save hozon', run: save },
+      { id: 'quant', group: '編集', title: 'クオンタイズ', keys: 'quantize', run: quantize },
+      { id: 'undo', group: '編集', title: '元に戻す', keys: 'undo', run: () => dispatch({ type: 'undo' }) },
+      { id: 'clear', group: '編集', title: '全消去', keys: 'clear delete all', run: clearAll },
+      { id: 'help', group: '編集', title: 'ショートカット一覧', keys: 'help shortcut', run: () => setHelp(true) },
     ]
-    ;(['roll', 'pitch', 'rhythm', 'audio'] as Tab[]).forEach((t, i) => list.push({ id: `tab-${t}`, group: 'View', title: `${TABS[i].label} を表示`, keys: t, run: () => dispatch({ type: 'tab', tab: t }) }))
+    ;(['roll', 'pitch', 'rhythm', 'audio'] as Tab[]).forEach((t, i) => list.push({ id: `tab-${t}`, group: '表示', title: `${TABS[i].label} を表示`, keys: t, run: () => dispatch({ type: 'tab', tab: t }) }))
     // キー × スケール
     Object.entries(SCALES).forEach(([sc, def]) => {
-      NOTE_NAMES.forEach((nn, k) => list.push({ id: `key-${k}-${sc}`, group: 'Key', title: `${nn} ${def.label}`, keys: `${nn}${def.label} key`, run: () => p({ key: k, scale: sc as ComposeParams['scale'] }) }))
+      NOTE_NAMES.forEach((nn, k) => list.push({ id: `key-${k}-${sc}`, group: 'キー', title: `${nn} ${def.label}`, keys: `${nn}${def.label} key`, run: () => p({ key: k, scale: sc as ComposeParams['scale'] }) }))
     })
-    ;(['4/4', '3/4', '6/8'] as const).forEach((ts) => list.push({ id: `ts-${ts}`, group: 'Key', title: `拍子 ${ts}`, keys: `time ${ts}`, run: () => p({ timeSig: ts }) }))
-    INSTRUMENTS.forEach((ins) => list.push({ id: `ins-${ins.id}`, group: 'Tone', title: ins.label, keys: `${ins.id} tone instrument`, hint: ins.desc, run: () => dispatch({ type: 'audio', patch: { instrument: ins.id } }) }))
-    takes.slice(0, 8).forEach((t) => list.push({ id: `take-${t.id}`, group: 'Takes', title: t.name, keys: `take ${t.seed}`, hint: `seed ${t.seed}`, run: () => loadTake(t) }))
+    ;(['4/4', '3/4', '6/8'] as const).forEach((ts) => list.push({ id: `ts-${ts}`, group: 'キー', title: `拍子 ${ts}`, keys: `time ${ts}`, run: () => p({ timeSig: ts }) }))
+    INSTRUMENTS.forEach((ins) => list.push({ id: `ins-${ins.id}`, group: '音色', title: ins.label, keys: `${ins.id} tone instrument`, hint: ins.desc, run: () => dispatch({ type: 'audio', patch: { instrument: ins.id } }) }))
+    takes.slice(0, 8).forEach((t) => list.push({ id: `take-${t.id}`, group: 'テイク', title: t.name, keys: `take ${t.seed}`, hint: `seed ${t.seed}`, run: () => loadTake(t) }))
     return list
   }, [runCompose, acceptAi, togglePlay, stopAll, toggleRecord, save, quantize, clearAll, takes, loadTake])
 
@@ -512,8 +512,8 @@ export default function App() {
                 })}
               </nav>
               <div className="ml-auto hidden items-center gap-4 text-[11px] text-[var(--tx-3)] md:flex">
-                <span><span key={analysis.noteCount} className="kt-swap num inline-block text-white">{analysis.noteCount}</span> notes</span>
-                <span className="flex items-center gap-1.5"><i className="h-1.5 w-1.5 rounded-full bg-[#ff5bd6]" />You</span>
+                <span><span key={analysis.noteCount} className="kt-swap num inline-block text-white">{analysis.noteCount}</span> 音符</span>
+                <span className="flex items-center gap-1.5"><i className="h-1.5 w-1.5 rounded-full bg-[#ff5bd6]" />あなた</span>
                 <span className="flex items-center gap-1.5"><i className="h-1.5 w-1.5 rounded-full bg-[#4fe3ff]" />AI</span>
               </div>
             </div>
@@ -572,7 +572,7 @@ export default function App() {
                   <span className="flex items-center gap-1.5"><i className="h-1 w-1 rounded-full bg-white/50" />スケール音</span>
                   <span className="flex items-center gap-1.5"><i className="h-1 w-1 rounded-full bg-[#ff5bd6]" />主音</span>
                 </span>
-                <Toggle on={state.quantizeRec} onChange={() => dispatch({ type: 'toggle', key: 'quantizeRec' })} label="Rec Quantize" />
+                <Toggle on={state.quantizeRec} onChange={() => dispatch({ type: 'toggle', key: 'quantizeRec' })} label="録音をグリッドに揃える" />
               </div>
               <div className="h-[112px] sm:h-[124px]" data-no-ptr>
                 <PianoUI low={low} high={high} activeKeys={state.activeKeys} aiKeys={state.aiKeys} baseOctave={state.baseOctave} keyRoot={state.params.key} scale={state.params.scale} onPress={press} onRelease={release} />
@@ -586,10 +586,6 @@ export default function App() {
           </aside>
         </main>
 
-        <footer className="flex flex-wrap items-center justify-between gap-2 border-t border-[var(--line)] px-1 pt-3 text-[11px] text-[var(--tx-3)]">
-          <span>FracTone — Midpoint displacement × motif development</span>
-          <span className="num">Built with <span className="text-[var(--tx)]">Hono</span> · React · Web Audio · Cloudflare</span>
-        </footer>
       </div>
       </PullToRefresh>
 
@@ -626,14 +622,13 @@ function HelpSheet({ onClose }: { onClose: () => void }) {
     ['A – ;', '鍵盤を演奏 (白鍵)'], ['W E T Y U O P', '黒鍵'], ['Z / X', 'オクターブ ↓ / ↑'],
     ['Space', '再生 / 一時停止'], ['R', '録音'], ['Enter', '停止して先頭へ'],
     ['Delete', '選択した音符を削除'], ['↑ ↓ ← →', '選択を移動 (Shift で 1oct)'], ['Ctrl + Z', '元に戻す'],
-    ['Double click', '音符を追加'], ['Drag', '移動 / 右端で長さ変更'], ['Ctrl + Wheel', 'ズーム'],
-    ['/  or  Ctrl + K', '検索・コマンド (オートコンプリート)'], ['Pull down', '(タッチ) 引っ張って別案を作曲'],
+    ['ダブルクリック', '音符を追加'], ['ドラッグ', '移動 / 右端で長さ変更'], ['Ctrl + ホイール', 'ズーム'],
+    ['/  or  Ctrl + K', '検索・コマンド (オートコンプリート)'], ['下へ引っ張る', '(タッチ) 別案を作曲'],
   ]
   return (
     <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm" onClick={onClose}>
       <div className="neu pop-in w-full max-w-md rounded-2xl p-6" onClick={(e) => e.stopPropagation()}>
-        <p className="eyebrow">Shortcuts</p>
-        <h3 className="mt-1 text-[18px] font-semibold text-white">操作ガイド</h3>
+        <h3 className="text-[18px] font-semibold text-white">操作ガイド</h3>
         <div className="mt-4 divide-y divide-[var(--line)]">
           {rows.map(([k, v], i) => (
             <div key={k} className="fade-up flex items-center justify-between py-2" style={{ ['--d' as any]: `${i * 25}ms` }}>

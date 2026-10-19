@@ -44,13 +44,13 @@ export function Controls({ state, dispatch, onRecord, onPlay, onStop, onDelete, 
         <button className="grid h-7 w-6 place-items-center rounded-md text-[var(--tx-3)] hover:text-white" onClick={() => dispatch({ type: 'params', patch: { bpm: Math.max(50, state.params.bpm - 2) } })} aria-label="テンポを下げる"><IMinus size={13} /></button>
         <div className="flex w-[64px] items-baseline justify-center gap-1">
           <span key={state.params.bpm} className="kt-swap num text-[15px] font-semibold text-white">{state.params.bpm}</span>
-          <span className="eyebrow !text-[8px] !tracking-[.14em]">bpm</span>
+          <span className="text-[10px] text-[var(--tx-3)]">BPM</span>
         </div>
         <button className="grid h-7 w-6 place-items-center rounded-md text-[var(--tx-3)] hover:text-white" onClick={() => dispatch({ type: 'params', patch: { bpm: Math.min(200, state.params.bpm + 2) } })} aria-label="テンポを上げる"><IPlus size={13} /></button>
       </Group>
 
       <Group className="!py-0.5 !pl-2.5">
-        <span className="eyebrow !text-[8px]">Tone</span>
+        <span className="text-[10px] text-[var(--tx-3)]">音色</span>
         <select
           className="select !w-[124px] !border-transparent !bg-transparent !py-1 !text-[12px] !shadow-none"
           value={state.audio.instrument}

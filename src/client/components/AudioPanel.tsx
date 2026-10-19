@@ -26,7 +26,7 @@ export function AudioPanel({ settings, dispatch }: { settings: AudioSettings; di
   return (
     <div className="thin-scroll grid h-full content-start gap-3 overflow-auto pr-1 md:grid-cols-2">
       <div className="neu-inset rounded-2xl p-3">
-        <p className="mb-2 text-[12.5px] font-semibold text-white"><span className="eyebrow mr-2">01</span>音色</p>
+        <p className="mb-2 text-[12.5px] font-semibold text-white">音色</p>
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
           {INSTRUMENTS.map((ins, i) => (
             <button
@@ -48,7 +48,7 @@ export function AudioPanel({ settings, dispatch }: { settings: AudioSettings; di
         </div>
       </div>
       <div className="neu-inset flex flex-col gap-3 rounded-2xl p-3">
-        <p className="text-[12.5px] font-semibold text-white"><span className="eyebrow mr-2">02</span>ミキサー</p>
+        <p className="text-[12.5px] font-semibold text-white">ミキサー</p>
         <Slider label="マスター音量" value={settings.volume} min={0} max={1} step={0.01} format={(v) => `${Math.round(v * 100)}%`} onChange={(v) => set({ volume: v })} />
         <Slider label="リバーブ (残響)" tone="cy" value={settings.reverb} min={0} max={1} step={0.01} format={(v) => `${Math.round(v * 100)}%`} onChange={(v) => set({ reverb: v })} />
         <Slider label="明るさ (フィルター)" value={settings.brightness} min={0} max={1} step={0.01} format={(v) => `${Math.round(v * 100)}%`} onChange={(v) => set({ brightness: v })} />
@@ -59,7 +59,7 @@ export function AudioPanel({ settings, dispatch }: { settings: AudioSettings; di
         <Toggle on={settings.metronome} onChange={(v) => set({ metronome: v })} label="メトロノーム (再生/録音時)" />
       </div>
       <div className="neu-inset rounded-2xl p-3">
-        <p className="mb-1 text-[12.5px] font-semibold text-white"><span className="eyebrow mr-2">03</span>ADSR エンベロープ</p>
+        <p className="mb-1 text-[12.5px] font-semibold text-white">ADSR エンベロープ</p>
         <svg viewBox="0 0 160 100" className="h-24 w-full">
           <defs>
             <linearGradient id="adsr" x1="0" x2="1"><stop offset="0" stopColor="#ff5bd6" /><stop offset="1" stopColor="#4fe3ff" /></linearGradient>
@@ -73,7 +73,7 @@ export function AudioPanel({ settings, dispatch }: { settings: AudioSettings; di
         <p className="text-[10px] leading-relaxed text-[var(--tx-3)]">音の「立ち上がり(A)→減衰(D)→持続(S)→余韻(R)」。DTM で音色づくりの基本になる考え方です。</p>
       </div>
       <div className="neu-inset rounded-2xl p-3">
-        <p className="mb-2 text-[12.5px] font-semibold text-white"><span className="eyebrow mr-2">04</span>スペクトラム</p>
+        <p className="mb-2 text-[12.5px] font-semibold text-white">スペクトラム</p>
         <div ref={specRef} className="flex h-24 items-end gap-[3px]">
           {Array.from({ length: 32 }).map((_, i) => (
             <div key={i} className="h-full flex-1 origin-bottom rounded-t-sm" style={{ background: `linear-gradient(to top, #ff5bd6, hsl(${300 - i * 3.5} 95% 72%))`, transform: 'scaleY(.04)', transition: 'transform 60ms linear' }} />

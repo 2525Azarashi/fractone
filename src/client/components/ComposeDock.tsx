@@ -13,7 +13,7 @@ function MiniParam({ label, value, display, min, max, step, onChange }: { label:
   return (
     <label className="group flex min-w-[96px] flex-1 flex-col gap-0.5 px-3 py-1.5" title={label}>
       <span className="flex items-baseline justify-between gap-2">
-        <span className="eyebrow !text-[8.5px] !tracking-[.18em] transition-colors group-hover:!text-[var(--tx-2)]">{label}</span>
+        <span className="text-[10px] text-[var(--tx-3)] transition-colors group-hover:text-[var(--tx-2)]">{label}</span>
         <span key={display} className="roll-num num text-[11px] font-semibold text-white">{display}</span>
       </span>
       <input type="range" className="slider" min={min} max={max} step={step} value={value} style={{ ['--p' as any]: `${pct}%` }} onChange={(e) => onChange(Number(e.target.value))} />
@@ -47,7 +47,7 @@ export function ComposeDock({ state, dispatch, onContinue, onGenerate, onReroll,
               <span className="block text-[13px] font-semibold">
                 <ScrambleText text={busy ? '作曲中…' : '続きを作曲'} duration={380} />
               </span>
-              <span className="num block text-[10px] text-white/70">{userCount} notes → +{p.bars} bars</span>
+              <span className="num block text-[10px] text-white/70">{userCount} 音 → +{p.bars} 小節</span>
             </span>
             <IArrowR size={15} className="opacity-70 transition-transform duration-300 group-hover:translate-x-1" />
             {busy && <span className="scan" />}
@@ -66,7 +66,7 @@ export function ComposeDock({ state, dispatch, onContinue, onGenerate, onReroll,
       <span className="hairline-x md:hidden" />
 
       <div className="grid min-w-0 flex-1 grid-cols-2 items-center sm:flex sm:flex-wrap">
-        <MiniParam label="Bars" value={p.bars} display={`${p.bars}`} min={2} max={32} step={2} onChange={(v) => set({ bars: v })} />
+        <MiniParam label="小節数" value={p.bars} display={`${p.bars}`} min={2} max={32} step={2} onChange={(v) => set({ bars: v })} />
         <MiniParam label="変位強度" value={p.displacement} display={p.displacement.toFixed(2)} min={0} max={1} step={0.01} onChange={(v) => set({ displacement: v })} />
         <MiniParam label="分解深度" value={p.depth} display={`Lv${p.depth}`} min={1} max={7} step={1} onChange={(v) => set({ depth: v })} />
         <MiniParam label="反復度" value={p.motifStrength} display={`${Math.round(p.motifStrength * 100)}%`} min={0} max={1} step={0.01} onChange={(v) => set({ motifStrength: v })} />
@@ -76,14 +76,14 @@ export function ComposeDock({ state, dispatch, onContinue, onGenerate, onReroll,
       <button
         onClick={() => dispatch({ type: 'toggle', key: 'live' })}
         className={`flex shrink-0 items-center justify-center gap-2 rounded-xl border px-3 py-2 text-[11px] font-medium transition-colors md:flex-col md:gap-1 md:py-1 ${state.live ? 'border-emerald-300/25 bg-emerald-300/[0.06] text-emerald-200' : 'border-[var(--line)] text-[var(--tx-3)] hover:text-[var(--tx)]'}`}
-        title="Live: 生成後、スライダーを動かすと即時に作曲し直します"
+        title="即時反映: 生成後、スライダーを動かすとその場で作曲し直します"
         aria-pressed={state.live}
       >
         <span className="relative flex h-2 w-2 items-center justify-center">
           {liveOn && <span className="live-dot absolute h-2 w-2 rounded-full bg-emerald-300" />}
           <span className={`h-1.5 w-1.5 rounded-full ${state.live ? 'bg-emerald-300' : 'bg-white/25'}`} />
         </span>
-        <span className="eyebrow !text-[8.5px] !tracking-[.2em] !text-current">Live</span>
+        <span className="text-[10px] font-medium text-current">即時反映</span>
       </button>
     </div>
   )

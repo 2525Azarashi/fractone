@@ -154,7 +154,7 @@ export function CommandPalette({ open, onClose, commands }: { open: boolean; onC
             lastGroup = r.c.group
             return (
               <div key={r.c.id + (r.arg ?? '')}>
-                {head && <p className="eyebrow px-3 pb-1 pt-3 !text-[8.5px]">{r.c.group}</p>}
+                {head && <p className="px-3 pb-1 pt-3 text-[10.5px] text-[var(--tx-3)]">{r.c.group}</p>}
                 <button
                   id={`pc-${i}`}
                   data-i={i}
@@ -170,7 +170,7 @@ export function CommandPalette({ open, onClose, commands }: { open: boolean; onC
                     <span className="block truncate text-[13px] text-[var(--tx)]"><Hl text={r.c.title} hits={r.hits} />{r.arg !== undefined && <span className="num ml-2 text-cyan-200">→ {r.arg}{r.c.arg?.unit ?? ''}</span>}</span>
                     {r.c.hint && <span className="block truncate text-[10.5px] text-[var(--tx-3)]">{r.c.hint}</span>}
                   </span>
-                  {q.trim() && <span className="num shrink-0 text-[9.5px] uppercase tracking-[.16em] text-[var(--tx-3)]">{r.c.group}</span>}
+                  {q.trim() && <span className="shrink-0 text-[10px] text-[var(--tx-3)]">{r.c.group}</span>}
                   {i === sel && <kbd className="num shrink-0 rounded border border-[var(--line-2)] px-1.5 text-[10px] text-[var(--tx-3)]">↵</kbd>}
                 </button>
               </div>

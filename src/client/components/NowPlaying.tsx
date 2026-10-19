@@ -156,7 +156,7 @@ export function NowPlaying({ sequence, bpm, beatsPerBar, form, activeKeys }: Pro
         s.phrase = pi
         const el = hPhrase.current
         if (el) {
-          el.textContent = pi >= 0 ? `${form[pi].label}  ${TRANSFORM_JA[form[pi].transform] ?? ''}` : 'Your melody'
+          el.textContent = pi >= 0 ? `${form[pi].label}  ${TRANSFORM_JA[form[pi].transform] ?? ''}` : 'あなたのメロディ'
           swapIn(el)
         }
       }
@@ -174,7 +174,7 @@ export function NowPlaying({ sequence, bpm, beatsPerBar, form, activeKeys }: Pro
       st.current.keyAt = performance.now()
       show(true)
       fire(added[added.length - 1], 0.85, false, 'k' + Date.now())
-      if (hPhrase.current) hPhrase.current.textContent = 'Live input'
+      if (hPhrase.current) hPhrase.current.textContent = '鍵盤入力'
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeKeys])
@@ -189,7 +189,7 @@ export function NowPlaying({ sequence, bpm, beatsPerBar, form, activeKeys }: Pro
       {/* HUD */}
       <div ref={hud} className="np-hud absolute right-2 top-[40px] w-[128px] rounded-xl sm:right-3 sm:top-[44px] sm:w-[178px] border border-[var(--line-2)] bg-[#0d0a15]/80 px-2.5 py-2 backdrop-blur-md sm:px-3 sm:py-2.5">
         <div className="flex items-center justify-between">
-          <span className="eyebrow !text-[8px]">Now playing</span>
+          <span className="text-[10px] text-[var(--tx-3)]">再生中</span>
           <span ref={hDot} className="h-1.5 w-1.5 rounded-full bg-fuchsia-400" style={{ boxShadow: '0 0 8px currentColor' }} />
         </div>
         <div className="mt-0.5 flex items-end gap-1.5">

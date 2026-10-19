@@ -60,7 +60,7 @@ export function TakesSheet({ open, onClose, takes, pending, currentId, onLoad, o
     <BottomSheet
       open={open}
       onClose={onClose}
-      eyebrow={`Takes · ${takes.length}`}
+      eyebrow={`${takes.length} 件`}
       title="テイク・ライブラリ"
       footer={
         <div className="flex items-center justify-between gap-3">
@@ -106,8 +106,8 @@ export function TakesSheet({ open, onClose, takes, pending, currentId, onLoad, o
                   </p>
                 </div>
                 <div className="hidden shrink-0 grid-cols-3 gap-2 text-center sm:grid">
-                  {[['HARM', t.stats.harmony.toFixed(1)], ['MOTIF', `${Math.round(t.stats.motif * 100)}%`], ['SMTH', t.stats.smooth.toFixed(1)]].map(([k, v]) => (
-                    <div key={k}><p className="text-[8px] tracking-[.14em] text-[var(--tx-3)]">{k}</p><p className="num text-[11px] text-[var(--tx)]">{v}</p></div>
+                  {[['調和', t.stats.harmony.toFixed(1)], ['反復', `${Math.round(t.stats.motif * 100)}%`], ['滑らか', t.stats.smooth.toFixed(1)]].map(([k, v]) => (
+                    <div key={k}><p className="text-[9px] text-[var(--tx-3)]">{k}</p><p className="num text-[11px] text-[var(--tx)]">{v}</p></div>
                   ))}
                 </div>
               </div>

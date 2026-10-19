@@ -43,15 +43,14 @@ export function ComposeOverlay({ depth, mode, seed, total = 1000 }: { depth: num
     <div className="absolute inset-0 z-30 flex flex-col justify-between overflow-hidden rounded-2xl bg-[#0a0812]/88 p-6 backdrop-blur-md md:p-8">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <p className="eyebrow">{mode === 'continue' ? 'Continuing your melody' : 'Composing from a new motif'}</p>
-          <h2 className="mt-2 font-display text-[clamp(28px,4vw,46px)] font-medium leading-none tracking-[-0.03em] text-white">
-            <ScrambleText key={stage} text={STAGES[stage].en} duration={420} />
+          <p className="text-[12px] text-[var(--tx-3)]">{mode === 'continue' ? 'あなたのメロディの続きを作曲中' : '新しいモチーフから作曲中'}</p>
+          <h2 className="mt-2 text-[clamp(24px,3.4vw,38px)] font-semibold leading-none tracking-[-0.02em] text-white">
+            <ScrambleText key={stage} text={STAGES[stage].ja} duration={420} />
           </h2>
-          <p className="mt-2 text-[12.5px] text-[var(--tx-2)]">{STAGES[stage].ja}</p>
         </div>
         <div className="text-right">
           <p className="num text-[44px] font-medium leading-none text-white">{Math.round(t * 100)}<span className="text-[16px] text-[var(--tx-3)]">%</span></p>
-          <p className="num mt-1 text-[10px] text-[var(--tx-3)]">depth {depth} · seed {seed}</p>
+          <p className="num mt-1 text-[10px] text-[var(--tx-3)]">深さ {depth}</p>
         </div>
       </div>
 
@@ -76,8 +75,7 @@ export function ComposeOverlay({ depth, mode, seed, total = 1000 }: { depth: num
               <div className="h-[2px] overflow-hidden rounded-full bg-white/10">
                 <div className="pipe-bar h-full bg-white" style={{ transform: `scaleX(${fill})` }} />
               </div>
-              <p className="num mt-2 text-[10px] text-[var(--tx-3)]">0{i + 1}</p>
-              <p className="mt-0.5 hidden text-[11px] text-[var(--tx)] md:block">{s.ja}</p>
+              <p className="mt-2 hidden text-[11px] text-[var(--tx)] md:block">{s.ja}</p>
             </li>
           )
         })}
@@ -90,7 +88,6 @@ export function ComposeOverlay({ depth, mode, seed, total = 1000 }: { depth: num
 export function FormReveal({ result }: { result: ComposeResult }) {
   return (
     <div className="form-reveal pointer-events-none absolute inset-0 z-20 flex flex-col items-center justify-center">
-      <p className="eyebrow mb-3">Form</p>
       <div className="flex items-baseline gap-[3vw] font-display text-[clamp(44px,8vw,112px)] font-medium leading-none tracking-[-0.04em]">
         {result.form.map((f, i) => (
           <span key={i} className="form-letter" style={{ ['--d' as any]: `${i * 110}ms`, color: f.transform === 'free' || f.transform === 'cadence' ? '#ffcf7a' : '#fff', textShadow: '0 10px 40px rgba(0,0,0,.6)' }}>
@@ -99,7 +96,7 @@ export function FormReveal({ result }: { result: ComposeResult }) {
         ))}
       </div>
       <p className="num mt-4 text-[11px] text-[var(--tx-2)]" style={{ textShadow: '0 2px 10px #000' }}>
-        {result.notes.length} notes · motif {result.motif?.signature ?? '—'}
+        {result.notes.length} 音符 · モチーフ {result.motif?.signature ?? '—'}
       </p>
     </div>
   )

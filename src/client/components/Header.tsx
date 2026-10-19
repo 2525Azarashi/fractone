@@ -24,12 +24,12 @@ export function Header({ state, onToggleMute, onHelp, onPalette, onTakes, takeCo
     if (el) Array.from(el.children).forEach((c, i) => ((c as HTMLElement).style.transform = `scaleY(${Math.max(0.15, Math.min(1, lv * 1.6 - i * 0.04 + Math.random() * 0.08))})`))
   })
   const st = {
-    idle: { t: 'Standby', c: 'bg-white/40' },
-    playing: { t: 'Playing', c: 'bg-cyan-300' },
-    recording: { t: 'Recording', c: 'bg-rose-400' },
-    composing: { t: 'Composing', c: 'bg-fuchsia-400' },
-    done: { t: 'Ready', c: 'bg-emerald-300' },
-    error: { t: 'Error', c: 'bg-amber-300' },
+    idle: { t: '待機中', c: 'bg-white/40' },
+    playing: { t: '再生中', c: 'bg-cyan-300' },
+    recording: { t: '録音中', c: 'bg-rose-400' },
+    composing: { t: '作曲中', c: 'bg-fuchsia-400' },
+    done: { t: '完了', c: 'bg-emerald-300' },
+    error: { t: 'エラー', c: 'bg-amber-300' },
   }[state.status]
   const muted = state.audio.volume === 0
   return (
@@ -45,7 +45,6 @@ export function Header({ state, onToggleMute, onHelp, onPalette, onTakes, takeCo
             <KineticText text="Frac" wave className="text-white" />
             <KineticText text="Tone" wave className="grad-text" />
           </h1>
-          <p className="eyebrow mt-1 !text-[8.5px]">Fractal Composer · DTM Lab</p>
         </div>
       </div>
 
@@ -62,7 +61,7 @@ export function Header({ state, onToggleMute, onHelp, onPalette, onTakes, takeCo
           <span ref={timeRef} className="num text-[13px] font-medium text-white">00:00.00</span>
           <span className="h-3 w-px bg-[var(--line-2)]" />
           <span className="num text-[12px] text-[var(--tx-2)]">
-            <span className="mr-1 text-[9px] tracking-[.18em] text-[var(--tx-3)]">BAR</span>
+            <span className="mr-1 text-[10px] text-[var(--tx-3)]">小節</span>
             <span ref={barRef}>01.1</span>
           </span>
           <div ref={meterRef} className="hidden h-4 items-end gap-[2px] sm:flex">

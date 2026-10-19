@@ -288,7 +288,6 @@ function PianoRollImpl({ state, dispatch }: { state: State; dispatch: Dispatch<A
         <div className="relative" style={{ display: 'grid', gridTemplateColumns: `${LABEL_W}px ${W}px`, gridTemplateRows: `${RULER_H}px ${H}px` }}>
           {/* corner */}
           <div className="eyebrow sticky left-0 top-0 z-30 flex items-center justify-center border-b border-r border-[var(--line)] bg-[#0e0b16] !text-[8px]">
-            BAR
           </div>
           {/* ruler */}
           <div className="sticky top-0 z-20 cursor-pointer border-b border-[var(--line)] bg-[#0e0b16]/95 backdrop-blur" onPointerDown={seekRuler}>
@@ -436,7 +435,6 @@ function PianoRollImpl({ state, dispatch }: { state: State; dispatch: Dispatch<A
       </div>
       {sequence.length === 0 && (
         <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center text-center">
-          <p className="eyebrow">Empty sequence</p>
           <p className="mt-2 text-[14px] font-medium text-[var(--tx)]">鍵盤を弾くか、グリッドをダブルクリックして音符を置く</p>
           <p className="mt-1 text-[11.5px] text-[var(--tx-3)]">録音ボタン（R）でリアルタイム入力もできます</p>
         </div>

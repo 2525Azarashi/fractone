@@ -102,7 +102,7 @@ function FormTimeline({ result, bpm }: { result: ComposeResult; bpm: number }) {
   const Y = (c: number) => 6 + ((hi - c) / (hi - lo)) * (H - 20)
   return (
     <div className="mt-3">
-      <p className="eyebrow mb-1 !text-[8.5px]">Macro contour · フレーズ中心音</p>
+      <p className="mb-1 text-[10.5px] text-[var(--tx-3)]">フレーズごとの中心音</p>
       <svg ref={svgRef} viewBox={`0 0 ${W} ${H}`} className="block w-full overflow-visible">
         <line ref={headRef} y1={0} y2={H - 10} stroke="#fff" strokeWidth={1} style={{ opacity: 0 }} />
         <path d={'M' + f.map((x) => `${(X(x.startBeat) + X(x.startBeat + x.lengthBeats)) / 2},${Y(x.center)}`).join(' L')} fill="none" stroke="rgba(255,255,255,.35)" strokeDasharray="2 3" className="line-draw" style={{ ['--len' as any]: 400 }} />
@@ -140,17 +140,17 @@ function AnalysisPanelImpl({ state, analysis, prev, result, loading = false }: {
       {/* ---- Status ---- */}
       <Card className="p-5" delay={80}>
         <div className="flex items-center justify-between">
-          <p className="eyebrow">Algorithm Status</p>
+          <p className="text-[11px] text-[var(--tx-3)]">作曲の状態</p>
           <span className={`flex items-center gap-1.5 text-[10px] font-medium ${result ? 'text-emerald-300' : 'text-[var(--tx-3)]'}`}>
             <span className={`h-1.5 w-1.5 rounded-full ${result ? 'bg-emerald-300' : state.status === 'composing' ? 'bg-fuchsia-400 breathe' : 'bg-white/30'}`} />
-            {result ? 'Success' : state.status === 'composing' ? 'Running' : 'Idle'}
+            {result ? '完了' : state.status === 'composing' ? '計算中' : '待機'}
           </span>
         </div>
         <p className="mt-2 font-display text-[22px] font-semibold leading-tight tracking-tight text-white">
           <ScrambleText text={statusText} duration={520} />
         </p>
         <p className="num mt-1 truncate text-[10.5px] text-[var(--tx-3)]">
-          {result ? `${result.engine === 'server' ? 'edge api' : 'local'} · ${result.elapsedMs}ms · seed ${p.seed}` : 'パラメータを調整して生成'}
+          {result ? `${result.elapsedMs}ms · シード ${p.seed}` : 'パラメータを調整して生成'}
         </p>
         <div className="mt-4">
           <div className="flex h-1 overflow-hidden rounded-full bg-white/5">
@@ -158,7 +158,7 @@ function AnalysisPanelImpl({ state, analysis, prev, result, loading = false }: {
             <div className="h-full bg-[#4fe3ff] transition-all duration-700" style={{ width: `${(aiN / total) * 100}%` }} />
           </div>
           <div className="mt-2 flex justify-between text-[10.5px]">
-            <span className="flex items-center gap-1.5 text-[var(--tx-2)]"><i className="h-1.5 w-1.5 rounded-full bg-[#ff5bd6]" />You <b className="num font-medium text-white">{userN}</b></span>
+            <span className="flex items-center gap-1.5 text-[var(--tx-2)]"><i className="h-1.5 w-1.5 rounded-full bg-[#ff5bd6]" />あなた <b className="num font-medium text-white">{userN}</b></span>
             <span className="flex items-center gap-1.5 text-[var(--tx-2)]">AI <b className="num font-medium text-white">{aiN}</b><i className="h-1.5 w-1.5 rounded-full bg-[#4fe3ff]" /></span>
           </div>
         </div>
@@ -166,7 +166,7 @@ function AnalysisPanelImpl({ state, analysis, prev, result, loading = false }: {
 
       {/* ---- Analysis ---- */}
       <Card className="p-5" delay={140}>
-        <SectionTitle index="04" en="Analysis" title="楽典分析" />
+        <SectionTitle title="楽典分析" />
         {loading ? <AnalysisSkeleton /> : <>
         <div className="grid grid-cols-3">
           {[
@@ -183,11 +183,11 @@ function AnalysisPanelImpl({ state, analysis, prev, result, loading = false }: {
         {/* レーダー: 現在 vs 直前 (破線) */}
         <div className="neu-inset mt-4 rounded-xl px-2 pb-1 pt-2">
           <div className="flex items-center justify-between px-1">
-            <span className="eyebrow !text-[8.5px]">Profile</span>
+            <span className="text-[10.5px] text-[var(--tx-3)]">特徴</span>
             {pv && <span className="flex items-center gap-1.5 text-[9.5px] text-[var(--tx-3)]"><i className="w-3 border-t border-dashed border-white/50" />前回</span>}
           </div>
           <div className="mx-auto max-w-[220px]">
-            <Radar axes={['HARM', 'SMOOTH', 'RHYTHM', 'MOTIF', 'LEAP', 'RANGE']} values={radarOf(a)} prev={pv && pv.noteCount ? radarOf(pv) : null} />
+            <Radar axes={['調和', '滑らか', 'リズム', '反復', '跳躍', '音域']} values={radarOf(a)} prev={pv && pv.noteCount ? radarOf(pv) : null} />
           </div>
         </div>
         {a && a.noteCount > 0 && (
@@ -222,7 +222,7 @@ function AnalysisPanelImpl({ state, analysis, prev, result, loading = false }: {
 
       {/* ---- Motif ---- */}
       <Card className="p-5" delay={200}>
-        <SectionTitle index="05" en="Motif & Form" title="モチーフと楽式" />
+        <SectionTitle title="モチーフと楽式" />
         {loading ? (
           <div className="flex flex-col gap-2.5" aria-busy="true">
             <div className="flex justify-between"><Skeleton className="h-3 w-24" /><Skeleton className="h-3 w-16" /></div>
@@ -257,24 +257,24 @@ function AnalysisPanelImpl({ state, analysis, prev, result, loading = false }: {
 
       {/* ---- Sequence ---- */}
       <Card className="p-5" delay={260}>
-        <SectionTitle index="06" en="Sequence" title="シーケンス情報" />
+        <SectionTitle title="シーケンス情報" />
         <div className="flex items-center gap-4">
           <PitchWheel hist={a?.pitchClassHist ?? new Array(12).fill(0)} keyRoot={p.key} steps={SCALES[p.scale].steps} />
           <div className="grid flex-1 grid-cols-2 gap-x-3 gap-y-3">
             {[
-              { k: 'Notes', v: <AnimatedNumber value={a?.noteCount ?? 0} className="text-cyan-200" /> },
-              { k: 'Length', v: <AnimatedNumber value={a?.durationSec ?? 0} decimals={1} suffix="s" /> },
-              { k: 'Range', v: <span className="num">{a?.rangeSemis ?? 0}st</span> },
-              { k: 'Density', v: <AnimatedNumber value={a?.density ?? 0} decimals={1} suffix="/s" /> },
+              { k: '音符数', v: <AnimatedNumber value={a?.noteCount ?? 0} className="text-cyan-200" /> },
+              { k: '長さ', v: <AnimatedNumber value={a?.durationSec ?? 0} decimals={1} suffix="s" /> },
+              { k: '音域', v: <span className="num">{a?.rangeSemis ?? 0}st</span> },
+              { k: '密度', v: <AnimatedNumber value={a?.density ?? 0} decimals={1} suffix="/s" /> },
             ].map((x) => (
               <div key={x.k}>
-                <p className="eyebrow !text-[8.5px]">{x.k}</p>
+                <p className="text-[10.5px] text-[var(--tx-3)]">{x.k}</p>
                 <p className="mt-0.5 font-display text-[18px] font-semibold leading-none text-white">{x.v}</p>
               </div>
             ))}
           </div>
         </div>
-        <p className="eyebrow mb-2 mt-5 !text-[8.5px]">Interval distribution</p>
+        <p className="mb-2 mt-5 text-[10.5px] text-[var(--tx-3)]">音程の分布</p>
         <div className="flex h-12 items-end gap-[3px]">
           {(a?.intervalHist ?? new Array(13).fill(0)).map((v, i, arr) => {
             const mx = Math.max(1, ...arr)
@@ -285,7 +285,7 @@ function AnalysisPanelImpl({ state, analysis, prev, result, loading = false }: {
             )
           })}
         </div>
-        <div className="num mt-1 flex justify-between text-[8.5px] text-[var(--tx-3)]"><span>0</span><span>step</span><span>leap</span><span>12</span></div>
+        <div className="num mt-1 flex justify-between text-[8.5px] text-[var(--tx-3)]"><span>0</span><span>順次</span><span>跳躍</span><span>12</span></div>
         <div className="mt-4 flex items-center justify-between border-t border-[var(--line)] pt-3 text-[11px]">
           <span className="text-[var(--tx-2)]">順次 <b className="num font-medium text-emerald-300">{Math.round((a?.stepRatio ?? 0) * 100)}%</b></span>
           <span className="text-[var(--tx-2)]">跳躍 <b className="num font-medium text-fuchsia-300">{Math.round((a?.leapRatio ?? 0) * 100)}%</b></span>

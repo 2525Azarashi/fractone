@@ -6,7 +6,7 @@
 // ============================================================
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { SplashCanvas, type SplashFeed } from './SplashCanvas'
-import { ProximityWord, Magnetic, ScrambleText } from './fx'
+import { ProximityWord, Magnetic } from './fx'
 import { RiseText } from './ui'
 import { IArrowR } from './icons'
 
@@ -73,16 +73,6 @@ export function Splash({ onStart }: { onStart: () => void }) {
 
   return (
     <div className={`fixed inset-0 z-[100] overflow-hidden bg-[#0a0812] ${leaving ? 'wipe-out splash-leaving pointer-events-none' : ''}`}>
-      {/* アウトライン・マーキー (2段・逆方向) */}
-      <div className="pointer-events-none absolute inset-x-0 top-[12%] select-none font-display text-[18vw] font-semibold leading-[0.9] tracking-[-0.05em]">
-        <div className="marquee-x outline-text">
-          {Array.from({ length: 2 }).map((_, k) => <span key={k} className="pr-[6vw]">Midpoint · Motif · Melody ·&nbsp;</span>)}
-        </div>
-        <div className="marquee-x rev outline-text opacity-40">
-          {Array.from({ length: 2 }).map((_, k) => <span key={k} className="pr-[6vw]">Recursion · Repetition · Rhythm ·&nbsp;</span>)}
-        </div>
-      </div>
-
       {/* 生きている中点変位 (canvas) */}
       <SplashCanvas feed={feed} leaving={leaving} />
       {/* グレイン + ビネット */}
@@ -91,10 +81,10 @@ export function Splash({ onStart }: { onStart: () => void }) {
 
       <div className="relative flex h-full flex-col justify-between p-6 md:p-12">
         <div className="flex items-start justify-between">
-          <span className="eyebrow"><ScrambleText text="FRACTONE / V1.0" /></span>
+          <span />
           {/* 階層カウンタ (インフォグラフィック) */}
           <div className="text-right">
-            <p className="eyebrow">Recursion depth</p>
+            <p className="text-[11px] text-[var(--tx-3)]">分割の深さ</p>
             <p className="num mt-1 text-[28px] font-medium leading-none text-white">
               <span key={lv} className="roll-num">{String(lv).padStart(2, '0')}</span>
               <span className="text-[13px] text-[var(--tx-3)]"> / {String(DEPTH).padStart(2, '0')}</span>
@@ -104,22 +94,21 @@ export function Splash({ onStart }: { onStart: () => void }) {
                 <span key={i} className="h-[3px] w-3 rounded-full transition-colors duration-300" style={{ background: i <= lv ? LEVEL_COL[i] : 'rgba(255,255,255,.1)' }} />
               ))}
             </div>
-            <p className="num mt-2 text-[10px] text-[var(--tx-3)]">{1 << lv} segments · {(1 << lv) + 1} points</p>
+            <p className="num mt-2 text-[10px] text-[var(--tx-3)]">{(1 << lv) + 1} 点</p>
             {/* 再生ヘッドが拾った音 (曲線 → 音階量子化) */}
             <div className={`mt-5 border-t border-[var(--line)] pt-3 transition-opacity duration-700 ${lv >= DEPTH ? 'opacity-100' : 'opacity-0'}`}>
-              <p className="eyebrow">Curve → Note</p>
+              <p className="text-[11px] text-[var(--tx-3)]">曲線の高さ → 音</p>
               <p className="mt-1 flex items-end justify-end gap-1 leading-none">
                 <span className="kt-mask"><span ref={noteRef} className="block font-display text-[34px] font-semibold text-white">—</span></span>
                 <span ref={octRef} className="num mb-1 text-[11px] text-[var(--tx-3)]" />
               </p>
               <p className="num mt-1.5 max-w-[190px] truncate text-[10px] text-[var(--tx-3)]"><span ref={histRef} /></p>
-              <p className="num mt-1 text-[10px] text-[var(--tx-3)]">seed <span ref={seedRef} className="text-[var(--tx-2)]">0011</span></p>
+              <span ref={seedRef} className="hidden" />
             </div>
           </div>
         </div>
 
         <div>
-          <p className="splash-fade eyebrow mb-5"><RiseText>A fractal sequencer for learning composition</RiseText></p>
           <h1 className="font-display text-[clamp(64px,13.5vw,200px)] leading-[0.86] tracking-[-0.05em] text-white">
             <ProximityWord text="Frac" min={250} max={850} delay={150} wave={0.75} />
             <ProximityWord text="Tone" gradient min={250} max={850} delay={370} wave={0.75} phase={4} />
@@ -130,24 +119,20 @@ export function Splash({ onStart }: { onStart: () => void }) {
               <br />
               <RiseText delay={700}>中点変位法とモチーフ展開で作曲する。</RiseText>
             </p>
-            <p className="fade-up hidden max-w-[260px] text-[11.5px] leading-relaxed text-[var(--tx-3)] md:block" style={{ ['--d' as any]: '900ms' }}>
-              mid = (a + b) / 2 + rand(−d, d)
-              <br />d ← d × roughness — 再帰的に分割して、構造と揺らぎを両立する。
-            </p>
+
           </div>
         </div>
 
         <div className="flex flex-wrap items-end justify-between gap-6">
           <ol className="splash-fade fade-up grid grid-cols-3 gap-6 md:gap-12" style={{ ['--d' as any]: '1000ms' }}>
-            {[['01', 'Play', '鍵盤で弾く'], ['02', 'Continue', '続きを作曲'], ['03', 'Learn', '分析して学ぶ']].map(([n, en, t]) => (
-              <li key={n} className="border-t border-[var(--line-2)] pt-3">
-                <p className="num text-[10px] text-[var(--tx-3)]">{n} — {en}</p>
-                <p className="mt-1 text-[13px] text-[var(--tx)]">{t}</p>
+            {['鍵盤で弾く', '続きを作曲', '分析して学ぶ'].map((t) => (
+              <li key={t} className="border-t border-[var(--line-2)] pt-3">
+                <p className="text-[13px] text-[var(--tx)]">{t}</p>
               </li>
             ))}
           </ol>
           <div className="splash-fade fade-up flex items-center gap-4" style={{ ['--d' as any]: '1150ms' }}>
-            <span className="num hidden text-[10px] text-[var(--tx-3)] sm:inline">click to reseed · press ⏎</span>
+            <span className="hidden text-[11px] text-[var(--tx-3)] sm:inline">クリックで曲線が変わります</span>
             <Magnetic strength={0.3}>
               <button onClick={start} className="btn-primary splash-cta group relative flex items-center gap-4 rounded-full py-4 pl-8 pr-4 text-[15px] font-medium">
                 はじめる
