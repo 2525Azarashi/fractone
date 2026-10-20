@@ -4,7 +4,9 @@ import type { Action, State } from '../state'
 import type { ScaleName, TimeSignature } from '../../lib/types'
 import { NOTE_NAMES, SCALES, createRng } from '../../lib/theory'
 import { midpointDisplace } from '../../lib/midpoint-displace'
-import { Card, SectionTitle, Select, Slider } from './ui'
+import { Card, SectionTitle, Select, Slider, Toggle } from './ui'
+import type { ChordStyle, HarmonyResult } from '../../lib/chord-generator'
+import { midiToName } from '../../lib/theory'
 import { IDice, ISave } from './icons'
 
 /** パラメータに応じて形が変わる、中点変位のライブプレビュー (インフォグラフィック) */
@@ -36,7 +38,73 @@ function MPDPreview({ depth, displacement, roughness, seed }: { depth: number; d
   )
 }
 
-export function ParamPanel({ state, dispatch, onSave }: { state: State; dispatch: Dispatch<Action>; onSave: () => void }) {
+const STYLES: { id: ChordStyle; label: string; desc: string; glyph: number[][] }[] = [
+  // glyph: [拍位置 0-7, 高さ 0-3] — ボタン内のミニ譜面
+  { id: 'block', label: 'ブロック', desc: '和音を拍ごとに刻む', glyph: [[0, 0], [0, 1], [0, 2], [2, 0], [2, 1], [2, 2], [4, 0], [4, 1], [4, 2], [6, 0], [6, 1], [6, 2]] },
+  { id: 'arpeggio', label: 'アルペジオ', desc: '分散和音で上下に流れる', glyph: [[0, 0], [1, 1], [2, 2], [3, 3], [4, 2], [5, 1], [6, 2], [7, 3]] },
+  { id: 'alberti', label: 'アルベルティ', desc: '低・高・中・高 の古典的な伴奏', glyph: [[0, 0], [1, 2], [2, 1], [3, 2], [4, 0], [5, 2], [6, 1], [7, 2]] },
+  { id: 'bass', label: 'ベース+和音', desc: 'ルートと5度のベースに裏拍の和音', glyph: [[0, 0], [1, 2], [1, 3], [2, 1], [3, 2], [3, 3], [4, 0], [5, 2], [5, 3], [6, 1], [7, 2], [7, 3]] },
+]
+
+function StyleGlyph({ g, on }: { g: number[][]; on: boolean }) {
+  return (
+    <svg viewBox="0 0 64 22" className="h-[18px] w-full">
+      {g.map(([x, y], i) => (
+        <rect key={i} x={x * 8 + 1} y={18 - y * 5} width={6} height={3} rx={1.2} fill={on ? (y === 0 ? '#fff' : '#4fe3ff') : 'rgba(236,232,245,.3)'} style={{ transition: `fill .3s ${i * 25}ms` }} />
+      ))}
+    </svg>
+  )
+}
+
+function HarmonyCard({ state, dispatch, harmony }: { state: State; dispatch: Dispatch<Action>; harmony: HarmonyResult | null }) {
+  const h = state.harmony
+  const on = state.chordsOn
+  const set = (patch: Partial<State['harmony']>) => dispatch({ type: 'harmony', patch })
+  const bpb = state.params.timeSig === '4/4' ? 4 : 3
+  const rates = [{ value: 0, label: '自動' }, { value: bpb, label: '1小節' }, ...(state.params.timeSig === '4/4' ? [{ value: 2, label: '2拍' }] : []), { value: 1, label: '1拍' }]
+  return (
+    <Card className="p-5" delay={150}>
+      <SectionTitle title="コード生成" right={<Toggle on={on} onChange={() => dispatch({ type: 'toggle', key: 'chordsOn' })} label={on ? 'オン' : 'オフ'} />} />
+      <div className={`grid transition-all duration-500 ${on ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-40'}`} style={{ transitionTimingFunction: 'var(--ease)' }}>
+        <div className="overflow-hidden">
+          <p className="mb-3 text-[11px] leading-relaxed text-[var(--tx-3)]">
+            メロディの音から和音を選び、機能和声のつながりで進行を決めます。
+            {harmony && <span className="num text-[var(--tx-2)]"> {harmony.chords.length} 和音 · {harmony.elapsedMs}ms</span>}
+          </p>
+          <span className="mb-1.5 block text-[11px] font-medium text-[var(--tx-3)]">伴奏の型</span>
+          <div className="grid grid-cols-2 gap-1.5" role="radiogroup" aria-label="伴奏の型">
+            {STYLES.map((st) => {
+              const sel = h.style === st.id
+              return (
+                <button
+                  key={st.id}
+                  role="radio"
+                  aria-checked={sel}
+                  title={st.desc}
+                  onClick={() => set({ style: st.id })}
+                  className={`rounded-xl border px-2.5 pb-1.5 pt-2 text-left transition-all duration-300 ${sel ? 'border-cyan-300/50 bg-cyan-300/[0.07] shadow-[0_0_0_1px_rgba(79,227,255,.15),0_6px_18px_-8px_rgba(79,227,255,.5)]' : 'border-[var(--line)] bg-white/[0.015] hover:border-[var(--line-2)]'}`}
+                >
+                  <StyleGlyph g={st.glyph} on={sel} />
+                  <span className={`mt-1 block text-[11.5px] font-medium ${sel ? 'text-white' : 'text-[var(--tx-2)]'}`}>{st.label}</span>
+                </button>
+              )
+            })}
+          </div>
+          <div className="mt-3 grid grid-cols-2 gap-2.5">
+            <Select label="変化の間隔" value={rates.some((r) => r.value === h.rate) ? h.rate : 0} options={rates} onChange={(v) => set({ rate: v })} />
+            <Select label="伴奏の音域" value={h.register} options={[{ value: 45, label: '低め' }, { value: 52, label: '標準' }, { value: 59, label: '高め' }]} onChange={(v) => set({ register: v })} />
+          </div>
+          <div className="mt-3.5 space-y-3.5">
+            <Slider label="7th の割合" tone="cy" value={h.color} min={0} max={1} step={0.01} format={(v) => `${Math.round(v * 100)}%`} onChange={(v) => set({ color: v })} hint="高いほど CM7 や Dm7 のようなおしゃれな響きに" />
+            <Slider label="伴奏の音量" value={h.volume} min={0} max={1} step={0.01} format={(v) => `${Math.round(v * 100)}%`} onChange={(v) => set({ volume: v })} hint={`メロディより小さめが聴きやすい。伴奏は ${midiToName(h.register)} 付近で、前の和音から近い形を選びます`} />
+          </div>
+        </div>
+      </div>
+    </Card>
+  )
+}
+
+export function ParamPanel({ state, dispatch, onSave, harmony = null }: { state: State; dispatch: Dispatch<Action>; onSave: () => void; harmony?: HarmonyResult | null }) {
   const p = state.params
   const set = (patch: Partial<State['params']>) => dispatch({ type: 'params', patch })
   return (
@@ -61,6 +129,8 @@ export function ParamPanel({ state, dispatch, onSave }: { state: State; dispatch
           <Slider label="人間らしい揺らぎ" tone="cy" value={p.humanize} min={0} max={1} step={0.01} format={(v) => `${Math.round(v * 100)}%`} onChange={(v) => set({ humanize: v })} hint="タイミングと強弱の自然な揺らぎ" />
         </div>
       </Card>
+
+      <HarmonyCard state={state} dispatch={dispatch} harmony={harmony} />
 
       <Card className="p-5" delay={180}>
         <SectionTitle title="音楽設定" />

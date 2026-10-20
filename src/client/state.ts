@@ -3,6 +3,7 @@
 // ============================================================
 import type { Analysis, ComposeParams, ComposeResult, Note } from '../lib/types'
 import type { AudioSettings } from '../lib/audio-engine'
+import { DEFAULT_HARMONY, type HarmonyParams } from '../lib/chord-generator'
 
 export type Tab = 'roll' | 'pitch' | 'rhythm' | 'audio'
 export type Status = 'idle' | 'playing' | 'recording' | 'composing' | 'done' | 'error'
@@ -23,6 +24,8 @@ export interface State {
   analysis: Analysis | null
   loop: boolean
   live: boolean // 生成後、パラメータ変更で即時再作曲
+  chordsOn: boolean // コード生成 (伴奏) を有効にする
+  harmony: HarmonyParams
   quantizeRec: boolean
   snap: number // 拍
   baseOctave: number
@@ -90,11 +93,12 @@ export type Action =
   | { type: 'select'; ids: string[] }
   | { type: 'params'; patch: Partial<ComposeParams> }
   | { type: 'audio'; patch: Partial<AudioSettings> }
+  | { type: 'harmony'; patch: Partial<HarmonyParams> }
   | { type: 'tab'; tab: Tab }
   | { type: 'status'; status: Status; message?: string }
   | { type: 'result'; result: ComposeResult | null }
   | { type: 'analysis'; analysis: Analysis | null }
-  | { type: 'toggle'; key: 'loop' | 'quantizeRec' | 'live' }
+  | { type: 'toggle'; key: 'loop' | 'quantizeRec' | 'live' | 'chordsOn' }
   | { type: 'snap'; snap: number }
   | { type: 'octave'; delta: number }
   | { type: 'cursor'; t: number }
@@ -150,6 +154,8 @@ export function reducer(s: State, a: Action): State {
       return { ...s, params: { ...s.params, ...a.patch } }
     case 'audio':
       return { ...s, audio: { ...s.audio, ...a.patch } }
+    case 'harmony':
+      return { ...s, harmony: { ...s.harmony, ...a.patch } }
     case 'tab':
       return { ...s, tab: a.tab }
     case 'status':
@@ -191,6 +197,8 @@ export function initState(): State {
     analysis: null,
     loop: false,
     live: true,
+    chordsOn: (saved as any)?.chordsOn ?? true,
+    harmony: { ...DEFAULT_HARMONY, ...((saved as any)?.harmony ?? {}) },
     quantizeRec: true,
     snap: 0.25,
     baseOctave: 4,

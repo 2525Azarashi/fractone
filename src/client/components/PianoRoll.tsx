@@ -10,12 +10,15 @@ import type { Action, State } from '../state'
 import { TIME_SIGS, inScale, isBlack, midiToName, uid } from '../../lib/theory'
 import { audio } from '../../lib/audio-engine'
 import { usePlayhead, setIdlePosition } from '../hooks/useTransport'
+import type { HarmonyResult } from '../../lib/chord-generator'
+import { FUNC_COLOR } from './NowPlaying'
 
 const LOW = 36
 const HIGH = 96
 const ROW = 15
 const LABEL_W = 54
-const RULER_H = 34
+const RULER_BASE = 34
+const CHORD_LANE = 19
 
 interface Drag {
   mode: 'move' | 'resize' | 'marquee'
@@ -28,7 +31,7 @@ interface Drag {
   moved: boolean
 }
 
-function PianoRollImpl({ state, dispatch }: { state: State; dispatch: Dispatch<Action> }) {
+function PianoRollImpl({ state, dispatch, harmony = null }: { state: State; dispatch: Dispatch<Action>; harmony?: HarmonyResult | null }) {
   const { sequence, params, selected, result, snap, generation } = state
   const spb = 60 / params.bpm
   const { beatsPerBar } = TIME_SIGS[params.timeSig]
@@ -49,6 +52,8 @@ function PianoRollImpl({ state, dispatch }: { state: State; dispatch: Dispatch<A
   const H = rows * ROW
   const yOf = (m: number) => (HIGH - m) * ROW
   const selSet = useMemo(() => new Set(selected), [selected])
+  const chords = harmony?.chords ?? []
+  const RULER_H = RULER_BASE + (chords.length ? CHORD_LANE : 0)
 
   // 初回: ノートの平均音高が中央に来るようにスクロール
   useLayoutEffect(() => {
@@ -259,6 +264,31 @@ function PianoRollImpl({ state, dispatch }: { state: State; dispatch: Dispatch<A
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [W, H, ppb, params.key, params.scale, totalBeats, beatsPerBar, snap])
 
+  // ---- 伴奏レイヤー (memo): 和音の構成音の行をうっすら色付け + 伴奏の音符を淡いバーで ----
+  const chordLayer = useMemo(() => {
+    if (!harmony || !harmony.chords.length) return null
+    const tint = []
+    for (const c of harmony.chords) {
+      const x = c.startBeat * ppb, w = c.lengthBeats * ppb
+      for (let m = HIGH; m >= LOW; m--) {
+        if (!c.pcs.includes(((m % 12) + 12) % 12)) continue
+        const root = ((m % 12) + 12) % 12 === c.root
+        tint.push(<rect key={`t${c.startBeat}-${m}`} x={x} y={yOf(m)} width={w} height={ROW} fill={FUNC_COLOR[c.func]} opacity={root ? 0.07 : 0.035} />)
+      }
+    }
+    return (
+      <g pointerEvents="none">
+        {tint}
+        {harmony.notes.map((n) => {
+          const x = (n.startTime / spb) * ppb
+          const w = Math.max(3, (n.duration / spb) * ppb - 1)
+          return <rect key={n.id} x={x} y={yOf(n.midiNoteNumber) + 3} width={w} height={ROW - 6} rx={2} fill="rgba(236,232,245,.13)" stroke="rgba(236,232,245,.22)" strokeWidth={0.5} />
+        })}
+      </g>
+    )
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [harmony, ppb, spb])
+
   const form = result?.form ?? []
   const aiStart = result ? result.startBeat * ppb : null
   // 直前の生成が「演出あり」か「Live 再作曲」かを判定 (演出の切替用)
@@ -300,8 +330,9 @@ function PianoRollImpl({ state, dispatch }: { state: State; dispatch: Dispatch<A
             {form.map((f, i) => (
               <div
                 key={`${generation}-${i}`}
-                className="pop-in num absolute bottom-1 flex h-[13px] items-center overflow-hidden rounded-[3px] border-l-2 border-white/60 pl-1.5 text-[9px] font-medium text-white/85"
+                className="pop-in num absolute flex h-[13px] items-center overflow-hidden rounded-[3px] border-l-2 border-white/60 pl-1.5 text-[9px] font-medium text-white/85"
                 style={{
+                  bottom: chords.length ? CHORD_LANE + 2 : 4,
                   left: f.startBeat * ppb + 2,
                   width: f.lengthBeats * ppb - 4,
                   background: f.transform === 'free' || f.transform === 'cadence' ? 'rgba(255,207,122,.14)' : 'rgba(79,227,255,.14)',
@@ -311,6 +342,30 @@ function PianoRollImpl({ state, dispatch }: { state: State; dispatch: Dispatch<A
               >
                 {f.label}
               </div>
+            ))}
+            {/* コード進行レーン: クリックで和音を試聴 */}
+            {chords.map((c, i) => (
+              <button
+                key={`${c.startBeat}-${c.name}`}
+                type="button"
+                onPointerDown={(e) => {
+                  e.stopPropagation()
+                  // 根音を G3〜F#4 に置き、構成音を上に積む + 1オクターブ下にベース
+                  const base = 55 + ((c.root - 7 + 12) % 12)
+                  ;[base - 12, ...c.pcs.map((pc) => base + ((pc - c.root + 12) % 12))].forEach((m, k) => setTimeout(() => audio.preview(m, 0.9, 0.55), k * 22))
+                }}
+                className="chord-chip num absolute bottom-[3px] flex h-[15px] items-center gap-1 overflow-hidden rounded-[4px] pl-1.5 text-left text-[9.5px] font-semibold text-white"
+                style={{
+                  left: c.startBeat * ppb + 2,
+                  width: Math.max(10, c.lengthBeats * ppb - 4),
+                  ['--fc' as any]: FUNC_COLOR[c.func],
+                  animationDelay: `${Math.min(900, i * 45)}ms`,
+                }}
+                title={`${c.name} (${c.roman}) — メロディとの一致 ${Math.round(c.fit * 100)}%`}
+              >
+                <span className="truncate">{c.name}</span>
+                {c.lengthBeats * ppb > 70 && <span className="truncate font-normal text-white/45">{c.roman}</span>}
+              </button>
             ))}
             <div ref={headRulerRef} className="pointer-events-none absolute left-0 top-0 h-full" style={{ willChange: 'transform' }}>
               <div className="absolute -left-[6px] top-0 h-0 w-0 border-x-[6px] border-t-[9px] border-x-transparent border-t-white" />
@@ -361,6 +416,7 @@ function PianoRollImpl({ state, dispatch }: { state: State; dispatch: Dispatch<A
                 </pattern>
               </defs>
               {grid}
+              {chordLayer}
               {aiStart !== null && <rect x={aiStart} y={0} width={Math.max(0, W - aiStart)} height={H} fill="url(#aiHatch)" pointerEvents="none" />}
               {aiStart !== null && <line x1={aiStart} x2={aiStart} y1={0} y2={H} stroke="#4fe3ff" strokeDasharray="2 4" strokeOpacity={0.5} pointerEvents="none" />}
               {sequence.map((n, idx) => {

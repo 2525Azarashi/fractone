@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'r
 import { initState, reducer, type Tab } from './state'
 import type { Analysis, ComposeParams, ComposeResult, Note } from '../lib/types'
 import { audio, toMidiFile } from '../lib/audio-engine'
+import { harmonize, type ChordStyle } from '../lib/chord-generator'
 import { compose } from '../lib/composer'
 import { analyze } from '../lib/analysis'
 import { NOTE_NAMES, SCALES, TIME_SIGS, uid } from '../lib/theory'
@@ -91,11 +92,22 @@ export default function App() {
   useEffect(() => {
     const id = setTimeout(() => {
       try {
-        localStorage.setItem('fractone:v1', JSON.stringify({ sequence: state.sequence, params: state.params, audio: state.audio }))
+        localStorage.setItem('fractone:v1', JSON.stringify({ sequence: state.sequence, params: state.params, audio: state.audio, harmony: state.harmony, chordsOn: state.chordsOn }))
       } catch {}
     }, 400)
     return () => clearTimeout(id)
-  }, [state.sequence, state.params, state.audio])
+  }, [state.sequence, state.params, state.audio, state.harmony, state.chordsOn])
+
+  // ---- コード生成: メロディ (ユーザー + AI) に和声づけ。数ms なので変更のたびに再計算 ----
+  const harmony = useMemo(() => {
+    if (!state.chordsOn || !state.sequence.length) return null
+    const { key, scale, bpm, timeSig, seed } = state.params
+    return harmonize(state.sequence, { key, scale, bpm, timeSig, seed, harmony: state.harmony })
+  }, [state.chordsOn, state.sequence, state.params.key, state.params.scale, state.params.bpm, state.params.timeSig, state.params.seed, state.harmony])
+  const harmonyRef = useRef(harmony)
+  harmonyRef.current = harmony
+  /** 再生 / 書き出し用: メロディ + 伴奏 */
+  const withChords = (seq: Note[]) => (harmonyRef.current ? [...seq, ...harmonyRef.current.notes] : seq)
 
   // ---- リアルタイム楽典分析 (シーケンスやキーが変わるたび) ----
   const analysis = useMemo(
@@ -157,7 +169,7 @@ export default function App() {
     if (!s.sequence.length) return toast('まず音符を置いてください', 'cy')
     const end = s.sequence.reduce((m, n) => Math.max(m, n.startTime + n.duration), 0)
     const from = s.cursor >= end - 0.05 ? 0 : s.cursor
-    audio.play(s.sequence, from, { bpm: s.params.bpm, beatsPerBar: TIME_SIGS[s.params.timeSig].beatsPerBar, loop: s.loop })
+    audio.play(withChords(s.sequence), from, { bpm: s.params.bpm, beatsPerBar: TIME_SIGS[s.params.timeSig].beatsPerBar, loop: s.loop })
     dispatch({ type: 'status', status: 'playing' })
   }, [toast])
 
@@ -170,7 +182,7 @@ export default function App() {
     }
     audio.stop(false)
     // カウントインなしで、カーソル位置から既存音符を流しつつ録音
-    audio.startClock(s.cursor, { bpm: s.params.bpm, beatsPerBar: TIME_SIGS[s.params.timeSig].beatsPerBar, seq: s.sequence })
+    audio.startClock(s.cursor, { bpm: s.params.bpm, beatsPerBar: TIME_SIGS[s.params.timeSig].beatsPerBar, seq: withChords(s.sequence) })
     dispatch({ type: 'status', status: 'recording', message: '録音中' })
     toast('録音開始 — 鍵盤を弾いてください', 'mag')
   }, [stopAll, toast])
@@ -292,14 +304,14 @@ export default function App() {
   const save = useCallback(() => {
     const s = stateRef.current
     if (!s.sequence.length) return toast('保存する音符がありません', 'cy')
-    const bytes = toMidiFile(s.sequence, s.params.bpm)
+    const bytes = toMidiFile(withChords(s.sequence), s.params.bpm)
     const blob = new Blob([bytes as BlobPart], { type: 'audio/midi' })
     const a = document.createElement('a')
     a.href = URL.createObjectURL(blob)
     a.download = `fractone_${NOTE_NAMES[s.params.key]}${s.params.scale}_${s.params.seed}.mid`
     a.click()
     setTimeout(() => URL.revokeObjectURL(a.href), 2000)
-    toast('MIDI をダウンロードしました', 'mint')
+    toast(harmonyRef.current ? 'MIDI をダウンロードしました (伴奏は ch.2)' : 'MIDI をダウンロードしました', 'mint')
   }, [toast])
 
   const clearAll = useCallback(() => {
@@ -440,6 +452,12 @@ export default function App() {
       { id: 'loop', group: '再生', title: 'ループ切替', keys: 'loop', run: () => dispatch({ type: 'toggle', key: 'loop' }) },
       { id: 'metro', group: '再生', title: 'メトロノーム切替', keys: 'metronome click', run: () => dispatch({ type: 'audio', patch: { metronome: !stateRef.current.audio.metronome } }) },
       { id: 'live', group: '再生', title: 'Live モード切替', keys: 'live', run: () => dispatch({ type: 'toggle', key: 'live' }) },
+      { id: 'chords', group: 'コード', title: 'コード生成 (伴奏) の切替', keys: 'chord harmony kodo bansou', hint: 'メロディに和音を付ける', run: () => dispatch({ type: 'toggle', key: 'chordsOn' }) },
+      ...(([['block', 'ブロック (和音を刻む)'], ['arpeggio', 'アルペジオ'], ['alberti', 'アルベルティ・バス'], ['bass', 'ベース + 裏拍の和音']] as [ChordStyle, string][]).map(([st, label]) => ({
+        id: `cstyle-${st}`, group: 'コード', title: `伴奏: ${label}`, keys: `chord style ${st}`, run: () => { dispatch({ type: 'harmony', patch: { style: st } }); if (!stateRef.current.chordsOn) dispatch({ type: 'toggle', key: 'chordsOn' }) },
+      }))),
+      { id: 'c7', group: 'コード', title: '7th の割合', keys: 'seventh 7th color', hint: '例: 7th 60 (%)', arg: { min: 0, max: 100, unit: '%' }, run: (v) => dispatch({ type: 'harmony', patch: { color: v! / 100 } }) },
+      { id: 'cvol', group: 'コード', title: '伴奏の音量', keys: 'chord volume bansou', hint: '例: 伴奏 40 (%)', arg: { min: 0, max: 100, unit: '%' }, run: (v) => dispatch({ type: 'harmony', patch: { volume: v! / 100 } }) },
       { id: 'bpm', group: 'パラメータ', title: 'テンポ (BPM)', keys: 'bpm tempo', hint: '例: bpm 128', arg: { min: 50, max: 200, unit: ' bpm' }, run: (v) => p({ bpm: v! }) },
       { id: 'bars', group: 'パラメータ', title: '基長 (小節数)', keys: 'bars length kichou', hint: '例: bars 12', arg: { min: 2, max: 16, unit: ' bars' }, run: (v) => p({ bars: v! }) },
       { id: 'range', group: 'パラメータ', title: '音域幅', keys: 'range oniki', hint: '例: range 18', arg: { min: 5, max: 24, unit: ' st' }, run: (v) => p({ range: v! }) },
@@ -483,7 +501,7 @@ export default function App() {
         <main className="grid grid-cols-1 gap-3 lg:grid-cols-[280px_minmax(0,1fr)_312px]">
           {/* ---- 左: 詳細パラメータ ---- */}
           <aside id="param-panel" className="thin-scroll order-2 min-w-0 lg:sticky lg:top-4 lg:order-1 lg:h-[calc(100vh-108px)] lg:min-h-[740px] lg:overflow-y-auto lg:pr-1">
-            <ParamPanel state={state} dispatch={dispatch} onSave={save} />
+            <ParamPanel state={state} dispatch={dispatch} onSave={save} harmony={harmony} />
           </aside>
 
           {/* ---- 中央: 作曲ドック + 可視化 + 鍵盤 ---- */}
@@ -550,12 +568,12 @@ export default function App() {
 
             <div className="relative min-h-[300px] flex-1" data-no-ptr>
               <div key={state.tab} className="fade-up absolute inset-0">
-                {state.tab === 'roll' && <PianoRoll state={state} dispatch={dispatch} />}
+                {state.tab === 'roll' && <PianoRoll state={state} dispatch={dispatch} harmony={harmony} />}
                 {state.tab === 'pitch' && <div className="neu-inset h-full rounded-2xl p-3"><PitchViz sequence={state.sequence} result={state.result} bpm={state.params.bpm} keyRoot={state.params.key} scale={state.params.scale} generation={state.generation} /></div>}
                 {state.tab === 'rhythm' && <RhythmViz sequence={state.sequence} bpm={state.params.bpm} timeSig={state.params.timeSig} analysis={analysis} generation={state.generation} />}
                 {state.tab === 'audio' && <AudioPanel settings={state.audio} dispatch={dispatch} />}
               </div>
-              {state.tab !== 'audio' && <NowPlaying sequence={state.sequence} bpm={state.params.bpm} beatsPerBar={TIME_SIGS[state.params.timeSig].beatsPerBar} form={state.result?.form ?? null} activeKeys={state.activeKeys} />}
+              {state.tab !== 'audio' && <NowPlaying sequence={state.sequence} bpm={state.params.bpm} beatsPerBar={TIME_SIGS[state.params.timeSig].beatsPerBar} form={state.result?.form ?? null} activeKeys={state.activeKeys} chords={harmony?.chords ?? null} />}
               {(burst || DEBUG === 'overlay') && <ComposeOverlay depth={burst?.depth ?? 5} mode={burst?.mode ?? 'continue'} seed={burst?.seed ?? 7} total={DEBUG === 'overlay' ? 4000 : OVERLAY_MS} />}
               {(reveal || (DEBUG === 'reveal' && state.result)) && state.tab === 'roll' && <FormReveal result={(reveal ?? state.result)!} />}
             </div>
@@ -582,7 +600,7 @@ export default function App() {
 
           {/* ---- 右: 分析 ---- */}
           <aside id="analysis-panel" className="thin-scroll order-3 min-w-0 lg:sticky lg:top-4 lg:h-[calc(100vh-108px)] lg:min-h-[740px] lg:overflow-y-auto lg:pr-1">
-            <AnalysisPanel state={state} analysis={analysis} prev={prevAnalysis.current} result={state.result} loading={busy} />
+            <AnalysisPanel state={state} analysis={analysis} prev={prevAnalysis.current} result={state.result} loading={busy} harmony={harmony} />
           </aside>
         </main>
 

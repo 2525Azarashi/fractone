@@ -28,7 +28,8 @@
 | Pull to Refresh | タッチ端末でページ上端から引っ張ると、中点変位カーブが階層ごとに描かれ、離すと別案を作曲（ピアノロール・鍵盤上では無効） |
 | Auto Complete | `/` または Ctrl+K でコマンドパレット。あいまい検索・一致文字ハイライト・ゴースト補完（Tab）・「bpm 128」のような数値付き入力、キー×スケール・音色・テイクも検索可 |
 | UX | 初回コーチマーク、`:focus-visible` リング、デスクトップは3カラム sticky + 内部スクロール、ピアノロールのホバー十字線・ベロシティバー |
-| 保存 | localStorage 自動保存 + Standard MIDI File (.mid) ダウンロード |
+| コード生成 | メロディに合わせてコード進行を自動生成し、伴奏を付ける。①メロディを1小節（必要なら半小節）ごとに区切る ②ダイアトニック・コード（短調系では長三和音の V も）にメロディとの一致度で点数を付ける ③トニック/サブドミナント/ドミナントのつながりと終止（V→I）を考慮した動的計画法（Viterbi）で進行全体を最適化 ④前の和音から最も近い転回形で伴奏の音符を作る（ブロック / アルペジオ / アルベルティ / ベース+和音）。変化の間隔・7th の割合・音量・音域を調整できる。ピアノロールにコードレーン（クリックで試聴）と淡い伴奏バー、右パネルに進行カード（機能の色分け・流れ・再生中の和音を強調）、再生 HUD に現在のコードを表示 |
+| 保存 | localStorage 自動保存 + Standard MIDI File (.mid) ダウンロード（伴奏は ch.2） |
 
 ## アーキテクチャ
 ```
@@ -42,6 +43,7 @@ src/
 │   ├── motif.ts              # モチーフ判断/作成/変形
 │   ├── composer.ts           # オーケストレーター
 │   ├── analysis.ts           # 楽典分析
+│   ├── chord-generator.ts    # コード進行生成（Viterbi）+ 伴奏パターン
 │   └── audio-engine.ts       # Web Audio シンセ / スケジューラ / MIDI書き出し（ブラウザ専用）
 └── client/                   # React SPA（useReducer で状態を最上位管理）
     ├── App.tsx, state.ts, main.tsx, styles.css (Tailwind v4)
@@ -56,18 +58,21 @@ src/
 | GET | `/api/health` | ヘルスチェック |
 | POST | `/api/compose` | `{ mode: 'continue'|'new', sequence: Note[], params }` → `{ result, analysis }` |
 | POST | `/api/analyze` | `{ sequence, key, scale, bpm, timeSig }` → 分析 + キー推定 |
+| POST | `/api/harmonize` | `{ sequence, key, scale, bpm, timeSig, seed, harmony:{style,rate,color,volume,register} }` → `{ chords, notes, elapsedMs }` |
 
 ## データモデル
 ```ts
-interface Note { id: string; midiNoteNumber: number; startTime: number; duration: number; velocity?: number; source?: 'user'|'ai'; tag?: string }
+interface Note { id: string; midiNoteNumber: number; startTime: number; duration: number; velocity?: number; source?: 'user'|'ai'|'chord'; tag?: string }
 ```
+- 伴奏（`source:'chord'`）は `sequence` に入れず、メロディから毎回計算して再生・書き出し時に合成する
 - ストレージ: ブラウザ localStorage（`fractone:v1` = 作業中データ / `fractone:takes` = テイク最大24件）。サーバー側 DB は不使用
 
 ## 使い方
 1. 「タップしてはじめる」→ 鍵盤（A S D F…）を弾く／● で録音／グリッドをダブルクリックで音符を置く
 2. 左パネルで変位強度・分解深度・モチーフ反復度などを調整
 3. ピアノロール上部の **続きを作曲** → シアンの音符が AI の続き。▶ で試聴、サイコロで別案、「採用」で自分のメロディとして採用して更に続ける
-4. 右パネルの分析で、パラメータが音楽にどう影響したか確認
+4. 左パネルの「コード生成」で伴奏の型を選ぶと、▶ でメロディと一緒に伴奏が鳴る
+5. 右パネルの分析で、パラメータが音楽にどう影響したか確認
 - ヘッダーの「?」で操作ガイド表示。ショートカット: Space 再生 / R 録音 / Enter 先頭へ / Z・X オクターブ / Delete 削除 / Ctrl+Z 元に戻す / Shift+A 全選択
 
 ## 開発
@@ -79,7 +84,8 @@ pm2 start ecosystem.config.cjs   # wrangler pages dev :3000
 - デバッグ: `/?debug=overlay` / `/?debug=reveal` で作曲オーバーレイ・楽式リビールを固定表示
 
 ## 未実装 / 次のステップ
-- 和音（コード）トラック・伴奏の自動生成
+- コードの手動編集（和音の差し替え・ロック）、セカンダリー・ドミナントや借用和音
+- 伴奏専用の音色
 - 複数トラック、ベロシティ編集レーン
 - MIDI ファイル読み込み・Web MIDI 入力
 - クラウド保存（D1）と作品共有
@@ -87,4 +93,4 @@ pm2 start ecosystem.config.cjs   # wrangler pages dev :3000
 ## デプロイ
 - プラットフォーム: Cloudflare Pages（未デプロイ）
 - 技術: Hono + React 18 + Tailwind CSS v4 + Web Audio API + TypeScript
-- 最終更新: 2026-10-18 (v3)
+- 最終更新: 2026-10-20 (v3.1 コード生成)

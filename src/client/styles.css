@@ -445,3 +445,18 @@ button:focus:not(:focus-visible), input:focus:not(:focus-visible) { outline: non
 /* 分析パネルの再計算中 (作曲中) */
 .panel-loading { position: relative; }
 @media (prefers-reduced-motion: reduce) { .skeleton, .toast-in, .palette-row, .take-in { animation: none; } }
+
+/* ---- コード進行レーン ---- */
+.chord-chip {
+  background: linear-gradient(90deg, color-mix(in oklab, var(--fc) 34%, transparent), color-mix(in oklab, var(--fc) 8%, transparent));
+  border-left: 2px solid var(--fc);
+  animation: chord-in .5s cubic-bezier(.16,1,.3,1) backwards;
+  transition: filter .2s, transform .2s;
+}
+.chord-chip:hover { filter: brightness(1.35); }
+.chord-chip:active { transform: scaleY(.88); }
+@keyframes chord-in { from { opacity: 0; transform: translateY(6px); clip-path: inset(0 100% 0 0); } to { opacity: 1; transform: none; clip-path: inset(0 0 0 0); } }
+.prog-cell { animation: chord-in .55s cubic-bezier(.16,1,.3,1) backwards; }
+@media (prefers-reduced-motion: reduce) { .chord-chip, .prog-cell { animation: none; } }
+.prog-chip { background: linear-gradient(160deg, color-mix(in oklab, var(--fc) 22%, #15111e), #110d19); border: 1px solid color-mix(in oklab, var(--fc) 28%, transparent); transition: transform .25s cubic-bezier(.16,1,.3,1), box-shadow .25s, border-color .25s; }
+.prog-chip.prog-on { transform: translateY(-2px); border-color: var(--fc); box-shadow: 0 0 0 1px var(--fc), 0 8px 20px -8px var(--fc); }

@@ -7,7 +7,8 @@ import { cors } from 'hono/cors'
 import { compose } from './lib/composer'
 import { analyze } from './lib/analysis'
 import type { ComposeRequest, Note } from './lib/types'
-import { estimateKey } from './lib/theory'
+import { estimateKey, SCALES, TIME_SIGS } from './lib/theory'
+import { harmonize, DEFAULT_HARMONY, type HarmonyParams } from './lib/chord-generator'
 
 const app = new Hono()
 app.use('/api/*', cors())
@@ -78,6 +79,34 @@ const shell = `<!DOCTYPE html>
 <script type="module" src="/static/app.js"></script>
 </body>
 </html>`
+
+/** コード生成: メロディに和声づけし、コード進行と伴奏の音符を返す */
+app.post('/api/harmonize', async (c) => {
+  try {
+    const body = (await c.req.json()) as any
+    const melody = sanitizeNotes(body?.sequence)
+    const scale = body?.scale in SCALES ? body.scale : 'major'
+    const timeSig = body?.timeSig in TIME_SIGS ? body.timeSig : '4/4'
+    const h: Partial<HarmonyParams> = body?.harmony ?? {}
+    const harmony: HarmonyParams = {
+      style: ['block', 'arpeggio', 'alberti', 'bass'].includes(h.style as string) ? (h.style as HarmonyParams['style']) : DEFAULT_HARMONY.style,
+      rate: [0, 1, 2, 3, 4].includes(Number(h.rate)) ? Number(h.rate) : 0,
+      color: Math.max(0, Math.min(1, Number(h.color ?? DEFAULT_HARMONY.color))),
+      volume: Math.max(0, Math.min(1, Number(h.volume ?? DEFAULT_HARMONY.volume))),
+      register: Math.max(36, Math.min(72, Math.round(Number(h.register ?? DEFAULT_HARMONY.register)))),
+    }
+    const result = harmonize(melody, {
+      key: ((Math.round(Number(body?.key) || 0) % 12) + 12) % 12,
+      scale, timeSig,
+      bpm: Math.max(40, Math.min(220, Number(body?.bpm) || 110)),
+      seed: Math.round(Number(body?.seed) || 1),
+      harmony,
+    })
+    return c.json(result)
+  } catch (e: any) {
+    return c.json({ error: String(e?.message ?? e) }, 500)
+  }
+})
 
 app.get('/', (c) => c.html(shell))
 

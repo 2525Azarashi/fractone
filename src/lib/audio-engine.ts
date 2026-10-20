@@ -298,6 +298,7 @@ class AudioEngine {
       if (n.startTime >= from && n.startTime < to) {
         const when = this.playStartCtx + (n.startTime - this.playStartPos)
         this.scheduled.push(this.voice(n.midiNoteNumber, when, n.velocity ?? 0.8, n.duration))
+        if (n.source === 'chord') continue // 伴奏は鍵盤の発光に使わない (メロディが見えなくなるため)
         const delayOn = (when - this.ctx.currentTime) * 1000
         const midi = n.midiNoteNumber
         window.setTimeout(() => this.onNoteVisual?.(midi, true), Math.max(0, delayOn))
@@ -372,10 +373,12 @@ export function toMidiFile(notes: Note[], bpm: number): Uint8Array {
     const on = Math.round((n.startTime / spb) * ppq)
     const off = Math.round(((n.startTime + n.duration) / spb) * ppq)
     const vel = Math.max(1, Math.min(127, Math.round((n.velocity ?? 0.8) * 127)))
-    evs.push({ tick: on, data: [0x90, n.midiNoteNumber, vel] })
-    evs.push({ tick: Math.max(on + 1, off), data: [0x80, n.midiNoteNumber, 0] })
+    // 伴奏 (コード) は ch.2、メロディは ch.1 に分けて書き出す
+    const ch = n.source === 'chord' ? 1 : 0
+    evs.push({ tick: on, data: [0x90 | ch, n.midiNoteNumber, vel] })
+    evs.push({ tick: Math.max(on + 1, off), data: [0x80 | ch, n.midiNoteNumber, 0] })
   })
-  evs.sort((a, b) => a.tick - b.tick || (a.data[0] === 0x80 ? -1 : 1))
+  evs.sort((a, b) => a.tick - b.tick || ((a.data[0] & 0xf0) === 0x80 ? -1 : 1))
   const vlq = (v: number) => {
     const bytes = [v & 0x7f]
     while ((v >>= 7)) bytes.unshift((v & 0x7f) | 0x80)

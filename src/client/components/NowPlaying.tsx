@@ -9,12 +9,16 @@ import { useEffect, useMemo, useRef } from 'react'
 import type { Note, PhrasePlan } from '../../lib/types'
 import { NOTE_NAMES } from '../../lib/theory'
 import { usePlayhead } from '../hooks/useTransport'
+import type { Chord } from '../../lib/chord-generator'
 
 const INTERVAL_JA = ['同音', '短2度', '長2度', '短3度', '長3度', '完全4度', '増4度', '完全5度', '短6度', '長6度', '短7度', '長7度', 'オクターブ']
 const TRANSFORM_JA: Record<string, string> = {
   statement: '提示', repeat: '反復', sequence: '反復進行', inversion: '反行', retrograde: '逆行',
   variation: '変奏', fragment: '断片化', free: '自由展開', cadence: '終止',
 }
+
+export const FUNC_COLOR = { T: '#7af0c4', S: '#ffcf7a', D: '#ff5bd6' } as const
+export const FUNC_JA = { T: 'トニック', S: 'サブドミナント', D: 'ドミナント' } as const
 
 /** マスク内で下からせり上がる (kt-swap 相当を WAAPI で) */
 function swapIn(el: HTMLElement) {
@@ -35,10 +39,13 @@ interface Props {
   beatsPerBar: number
   form: PhrasePlan[] | null
   activeKeys: number[]
+  chords?: Chord[] | null
 }
 
-export function NowPlaying({ sequence, bpm, beatsPerBar, form, activeKeys }: Props) {
+export function NowPlaying({ sequence, bpm, beatsPerBar, form, activeKeys, chords }: Props) {
   const sorted = useMemo(() => [...sequence].sort((a, b) => a.startTime - b.startTime), [sequence])
+  const hChord = useRef<HTMLSpanElement>(null)
+  const hRoman = useRef<HTMLSpanElement>(null)
   const root = useRef<HTMLDivElement>(null)
   const big = useRef<HTMLDivElement>(null)
   const bigName = useRef<HTMLSpanElement>(null)
@@ -53,7 +60,7 @@ export function NowPlaying({ sequence, bpm, beatsPerBar, form, activeKeys }: Pro
   const hBar = useRef<HTMLSpanElement>(null)
   const dots = useRef<HTMLSpanElement>(null)
   const bigAnim = useRef<Animation | null>(null)
-  const st = useRef({ id: '', prevMidi: -1, visible: false, beat: -1, phrase: -1, cursor: 0, keyAt: 0 })
+  const st = useRef({ id: '', prevMidi: -1, visible: false, beat: -1, phrase: -1, chord: -2, cursor: 0, keyAt: 0 })
 
   /** 1音ぶんのキネティック表示を発火 */
   const fire = (midi: number, vel: number, ai: boolean, key: string) => {
@@ -105,7 +112,7 @@ export function NowPlaying({ sequence, bpm, beatsPerBar, form, activeKeys }: Pro
     if (s.visible === on) return
     s.visible = on
     root.current?.classList.toggle('np-on', on)
-    if (!on) { s.id = ''; s.beat = -1; s.phrase = -1 }
+    if (!on) { s.id = ''; s.beat = -1; s.phrase = -1; s.chord = -2 }
   }
 
   usePlayhead((t, playing) => {
@@ -146,6 +153,21 @@ export function NowPlaying({ sequence, bpm, beatsPerBar, form, activeKeys }: Pro
           ;(c as HTMLElement).style.background = on ? (i === 0 ? '#fff' : '#ff5bd6') : 'rgba(255,255,255,.14)'
           ;(c as HTMLElement).style.transform = on ? 'scaleY(1.6)' : 'scaleY(1)'
         })
+      }
+    }
+    // 現在のコード
+    {
+      const b = t / spb
+      const ci = chords && chords.length ? chords.findIndex((c) => b >= c.startBeat && b < c.startBeat + c.lengthBeats) : -1
+      if (ci !== s.chord) {
+        s.chord = ci
+        const c = ci >= 0 ? chords![ci] : null
+        if (hChord.current) {
+          hChord.current.textContent = c ? c.name : '—'
+          hChord.current.style.color = c ? FUNC_COLOR[c.func] : 'rgba(236,232,245,.4)'
+          swapIn(hChord.current)
+        }
+        if (hRoman.current) hRoman.current.textContent = c ? `${c.roman} · ${FUNC_JA[c.func]}` : ''
       }
     }
     // 楽式フレーズ
@@ -200,6 +222,12 @@ export function NowPlaying({ sequence, bpm, beatsPerBar, form, activeKeys }: Pro
           <span ref={hArrow} className="mb-1 ml-auto text-[18px] leading-none transition-colors" />
         </div>
         <span ref={hInt} className="num mt-1 block text-[10.5px] text-[var(--tx-2)]">—</span>
+        {chords && chords.length > 0 && (
+          <div className="mt-1.5 flex items-baseline justify-between gap-2 border-t border-[var(--line)] pt-1.5">
+            <span className="kt-mask"><span ref={hChord} className="num block text-[15px] font-semibold leading-none sm:text-[17px]">—</span></span>
+            <span ref={hRoman} className="num truncate text-[9.5px] text-[var(--tx-3)]" />
+          </div>
+        )}
         <div className="mt-2 hidden items-center justify-between border-t sm:flex border-[var(--line)] pt-2">
           <span className="kt-mask"><span ref={hPhrase} className="block text-[11px] font-medium text-cyan-200">—</span></span>
           <span className="flex items-center gap-1.5">

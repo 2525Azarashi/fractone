@@ -9,7 +9,7 @@ export interface Note {
   startTime: number // シーケンス開始からの相対時間（秒）
   duration: number // 音の持続時間（秒）
   velocity?: number // 0-1 (省略時 0.8)
-  source?: 'user' | 'ai' // 誰が作った音符か
+  source?: 'user' | 'ai' | 'chord' // 誰が作った音符か (chord = 自動伴奏)
   tag?: string // フレーズラベル (A, A', B ...) やモチーフ印
 }
 

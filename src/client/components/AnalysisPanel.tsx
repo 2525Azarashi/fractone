@@ -7,6 +7,8 @@ import { NOTE_NAMES, SCALES } from '../../lib/theory'
 import { AnimatedNumber, Card, Gauge, SectionTitle } from './ui'
 import { Delta, Radar, ScrambleText } from './fx'
 import type { State } from '../state'
+import type { HarmonyResult } from '../../lib/chord-generator'
+import { FUNC_COLOR, FUNC_JA } from './NowPlaying'
 
 const TRANSFORM_JA: Record<string, string> = {
   statement: '提示', repeat: '反復', sequence: '反復進行', inversion: '反行', retrograde: '逆行',
@@ -120,7 +122,7 @@ function FormTimeline({ result, bpm }: { result: ComposeResult; bpm: number }) {
   )
 }
 
-function AnalysisPanelImpl({ state, analysis, prev, result, loading = false }: { state: State; analysis: Analysis | null; prev: Analysis | null; result: ComposeResult | null; loading?: boolean }) {
+function AnalysisPanelImpl({ state, analysis, prev, result, loading = false, harmony = null }: { state: State; analysis: Analysis | null; prev: Analysis | null; result: ComposeResult | null; loading?: boolean; harmony?: HarmonyResult | null }) {
   const a = analysis
   const pv = result ? prev : null
   const dd = (f: (x: Analysis) => number) => (a && pv && pv.noteCount ? f(a) - f(pv) : null)
@@ -255,6 +257,9 @@ function AnalysisPanelImpl({ state, analysis, prev, result, loading = false }: {
         )}
       </Card>
 
+      {/* ---- コード進行 ---- */}
+      {harmony && harmony.chords.length > 0 && <Progression harmony={harmony} bpb={TIME_SIGS_BPB[state.params.timeSig]} spb={60 / state.params.bpm} />}
+
       {/* ---- Sequence ---- */}
       <Card className="p-5" delay={260}>
         <SectionTitle title="シーケンス情報" />
@@ -295,6 +300,75 @@ function AnalysisPanelImpl({ state, analysis, prev, result, loading = false }: {
     </div>
   )
 }
+const TIME_SIGS_BPB: Record<string, number> = { '4/4': 4, '3/4': 3, '6/8': 3 }
+
+/** コード進行カード: 小節グリッド上の和音 + 機能 (T/S/D) の流れ + 再生位置 */
+function Progression({ harmony, bpb, spb }: { harmony: HarmonyResult; bpb: number; spb: number }) {
+  const cs = harmony.chords
+  const bars = Math.max(1, Math.ceil((cs[cs.length - 1].startBeat + cs[cs.length - 1].lengthBeats) / bpb - 1e-6))
+  // 半小節以下の和音がある時は 1 行 2 小節にして名前が切れないようにする
+  const perRow = cs.some((c) => c.lengthBeats < bpb) ? 2 : 4
+  const box = useRef<HTMLDivElement>(null)
+  const last = useRef(-1)
+  usePlayhead((t, playing) => {
+    const b = t / spb
+    const i = playing ? cs.findIndex((c) => b >= c.startBeat && b < c.startBeat + c.lengthBeats) : -1
+    if (i === last.current || !box.current) return
+    last.current = i
+    box.current.querySelectorAll<HTMLElement>('[data-ci]').forEach((el) => el.classList.toggle('prog-on', Number(el.dataset.ci) === i))
+  })
+  const counts = { T: 0, S: 0, D: 0 }
+  cs.forEach((c) => (counts[c.func] += c.lengthBeats))
+  const tot = Math.max(1, counts.T + counts.S + counts.D)
+  const fitAvg = cs.reduce((s, c) => s + c.fit * c.lengthBeats, 0) / tot
+  // 機能の流れ (T=下, S=中, D=上) を折れ線で
+  const W = 260, H = 34
+  const lv = { T: 26, S: 16, D: 6 }
+  const totalBeats = bars * bpb
+  const pts = cs.map((c) => [((c.startBeat + c.lengthBeats / 2) / totalBeats) * W, lv[c.func]] as const)
+  return (
+    <Card className="p-5" delay={230}>
+      <SectionTitle title="コード進行" right={<span className="num text-[10.5px] text-[var(--tx-3)]">一致 {Math.round(fitAvg * 100)}%</span>} />
+      <div ref={box} className="flex flex-col gap-1">
+        {Array.from({ length: Math.ceil(bars / perRow) }).map((_, r) => (
+          <div key={r} className="grid gap-1" style={{ gridTemplateColumns: `repeat(${perRow * bpb}, minmax(0,1fr))` }}>
+            {cs.filter((c) => c.startBeat >= r * perRow * bpb - 1e-6 && c.startBeat < (r + 1) * perRow * bpb - 1e-6).map((c) => {
+              const ci = cs.indexOf(c)
+              const col = Math.round(c.startBeat - r * perRow * bpb) + 1
+              return (
+                <div
+                  key={`${c.startBeat}-${c.name}`}
+                  data-ci={ci}
+                  className="prog-cell prog-chip relative min-w-0 overflow-hidden rounded-lg px-1.5 py-1.5"
+                  style={{ gridColumn: `${col} / span ${Math.max(1, Math.round(c.lengthBeats))}`, ['--fc' as any]: FUNC_COLOR[c.func], animationDelay: `${Math.min(800, ci * 50)}ms` }}
+                  title={`${c.name} (${c.roman}) · ${FUNC_JA[c.func]} · 一致 ${Math.round(c.fit * 100)}%`}
+                >
+                  <span className="num block truncate text-[12px] font-semibold leading-tight text-white">{c.name}</span>
+                  <span className="num block truncate text-[9px] leading-tight text-white/50">{c.roman}</span>
+                  <span className="absolute bottom-0 left-0 h-[2px] bg-[var(--fc)]" style={{ width: `${Math.round(c.fit * 100)}%`, opacity: 0.8 }} />
+                </div>
+              )
+            })}
+          </div>
+        ))}
+      </div>
+      <svg viewBox={`0 0 ${W} ${H}`} className="mt-3 block h-[34px] w-full" preserveAspectRatio="none">
+        {(['D', 'S', 'T'] as const).map((f) => <line key={f} x1={0} x2={W} y1={lv[f]} y2={lv[f]} stroke="rgba(255,255,255,.05)" strokeDasharray="2 3" />)}
+        <polyline points={pts.map((p) => p.join(',')).join(' ')} fill="none" stroke="rgba(236,232,245,.35)" strokeWidth={1} strokeLinejoin="round" vectorEffect="non-scaling-stroke" className="draw-line" />
+        {pts.map((p, i) => <circle key={i} cx={p[0]} cy={p[1]} r={2.4} fill={FUNC_COLOR[cs[i].func]} />)}
+      </svg>
+      <div className="mt-2 flex h-1.5 overflow-hidden rounded-full">
+        {(['T', 'S', 'D'] as const).map((f) => <div key={f} className="h-full transition-all duration-700" style={{ width: `${(counts[f] / tot) * 100}%`, background: FUNC_COLOR[f] }} />)}
+      </div>
+      <div className="mt-1.5 flex justify-between text-[10px] text-[var(--tx-3)]">
+        {(['T', 'S', 'D'] as const).map((f) => (
+          <span key={f} className="flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full" style={{ background: FUNC_COLOR[f] }} />{FUNC_JA[f]} <b className="num font-medium text-[var(--tx-2)]">{Math.round((counts[f] / tot) * 100)}%</b></span>
+        ))}
+      </div>
+    </Card>
+  )
+}
+
 /** 作曲中: 分析カードの骨格をシマー付きで表示 (レイアウトを崩さず「計算中」を伝える) */
 function AnalysisSkeleton() {
   return (
