@@ -31,3 +31,7 @@ lerna-debug.log*
 
 # misc
 .DS_Store
+
+public/static/app.js
+public/static/app.css
+.pm2/
