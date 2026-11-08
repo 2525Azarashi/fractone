@@ -79,10 +79,10 @@ export function Header({ state, onToggleMute, onHelp, onPalette, onTakes, takeCo
         <button onClick={onPalette} className="neu-btn grid h-9 w-9 place-items-center rounded-xl md:hidden" aria-label="コマンドを検索"><ISearch size={15} /></button>
         <button onClick={onTakes} className="neu-btn relative grid h-9 w-9 place-items-center rounded-xl" aria-label="テイク・ライブラリ" title="テイク・ライブラリ">
           <ILib size={16} />
-          {takeCount > 0 && <span key={takeCount} className="pop-in num absolute -right-1 -top-1 grid h-4 min-w-4 place-items-center rounded-full bg-[#ff5bd6] px-1 text-[9px] font-semibold text-white">{takeCount}</span>}
+          {takeCount > 0 && <span key={takeCount} className="pop-in num absolute -right-1 -top-1 grid h-4 min-w-4 place-items-center rounded-full bg-[#ff5bd6] px-1 text-[9px] font-semibold text-[#190d23]">{takeCount}</span>}
         </button>
         <button onClick={onHelp} className="neu-btn grid h-9 w-9 place-items-center rounded-xl text-[13px] font-semibold" aria-label="ショートカット" title="ショートカット">?</button>
-        <button onClick={onToggleMute} className="neu-btn grid h-9 w-9 place-items-center rounded-xl" aria-label="音声出力" title="音声出力 ON/OFF">
+        <button onClick={onToggleMute} className="neu-btn grid h-9 w-9 place-items-center rounded-xl" aria-label={muted ? "音声出力をオンにする" : "音声出力をミュート"} aria-pressed={muted} title="音声出力 ON/OFF">
           {muted ? <IMute size={16} /> : <IVol size={16} />}
         </button>
       </div>

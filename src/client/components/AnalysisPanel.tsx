@@ -2,10 +2,10 @@
 import { Skeleton } from './patterns'
 import { memo, useRef } from 'react'
 import { usePlayhead } from '../hooks/useTransport'
-import type { Analysis, ComposeResult, Note } from '../../lib/types'
+import type { Analysis, ComposeResult } from '../../lib/types'
 import { NOTE_NAMES, SCALES } from '../../lib/theory'
-import { AnimatedNumber, Card, Gauge, SectionTitle } from './ui'
-import { Delta, Radar, ScrambleText } from './fx'
+import { AnimatedNumber, Card, SectionTitle } from './ui'
+import { Radar } from './fx'
 import type { State } from '../state'
 import type { HarmonyResult } from '../../lib/chord-generator'
 import { FUNC_COLOR, FUNC_JA } from './NowPlaying'
@@ -125,106 +125,50 @@ function FormTimeline({ result, bpm }: { result: ComposeResult; bpm: number }) {
 function AnalysisPanelImpl({ state, analysis, prev, result, loading = false, harmony = null }: { state: State; analysis: Analysis | null; prev: Analysis | null; result: ComposeResult | null; loading?: boolean; harmony?: HarmonyResult | null }) {
   const a = analysis
   const pv = result ? prev : null
-  const dd = (f: (x: Analysis) => number) => (a && pv && pv.noteCount ? f(a) - f(pv) : null)
   const radarOf = (x: Analysis | null) =>
     x ? [x.harmony / 10, x.smoothness / 10, x.rhythmClarity / 10, Math.min(1, x.motifRepetition), Math.min(1, x.leapRatio * 2.5), Math.min(1, x.rangeSemis / 24)] : [0, 0, 0, 0, 0, 0]
   const p = state.params
-  const userN = state.sequence.filter((n: Note) => n.source !== 'ai').length
-  const aiN = state.sequence.length - userN
-  const total = Math.max(1, userN + aiN)
-  const statusText =
-    state.status === 'composing' ? '中点変位を計算中' :
-    result ? `${result.notes.length} 音符を生成` :
-    state.status === 'recording' ? '録音中' : '待機中'
 
   return (
     <div className="flex flex-col gap-3">
-      {/* ---- Status ---- */}
-      <Card className="p-5" delay={80}>
-        <div className="flex items-center justify-between">
-          <p className="text-[11px] text-[var(--tx-3)]">作曲の状態</p>
-          <span className={`flex items-center gap-1.5 text-[10px] font-medium ${result ? 'text-emerald-300' : 'text-[var(--tx-3)]'}`}>
-            <span className={`h-1.5 w-1.5 rounded-full ${result ? 'bg-emerald-300' : state.status === 'composing' ? 'bg-fuchsia-400 breathe' : 'bg-white/30'}`} />
-            {result ? '完了' : state.status === 'composing' ? '計算中' : '待機'}
-          </span>
-        </div>
-        <p className="mt-2 font-display text-[22px] font-semibold leading-tight tracking-tight text-white">
-          <ScrambleText text={statusText} duration={520} />
-        </p>
-        <p className="num mt-1 truncate text-[10.5px] text-[var(--tx-3)]">
-          {result ? `${result.elapsedMs}ms · シード ${p.seed}` : 'パラメータを調整して生成'}
-        </p>
-        <div className="mt-4">
-          <div className="flex h-1 overflow-hidden rounded-full bg-white/5">
-            <div className="h-full bg-[#ff5bd6] transition-all duration-700" style={{ width: `${(userN / total) * 100}%` }} />
-            <div className="h-full bg-[#4fe3ff] transition-all duration-700" style={{ width: `${(aiN / total) * 100}%` }} />
-          </div>
-          <div className="mt-2 flex justify-between text-[10.5px]">
-            <span className="flex items-center gap-1.5 text-[var(--tx-2)]"><i className="h-1.5 w-1.5 rounded-full bg-[#ff5bd6]" />あなた <b className="num font-medium text-white">{userN}</b></span>
-            <span className="flex items-center gap-1.5 text-[var(--tx-2)]">AI <b className="num font-medium text-white">{aiN}</b><i className="h-1.5 w-1.5 rounded-full bg-[#4fe3ff]" /></span>
-          </div>
-        </div>
-      </Card>
-
-      {/* ---- Analysis ---- */}
-      <Card className="p-5" delay={140}>
-        <SectionTitle title="楽典分析" />
-        {loading ? <AnalysisSkeleton /> : <>
-        <div className="grid grid-cols-3">
-          {[
-            { v: a?.harmony ?? 0, l: 'ハーモニー', c: '#4fe3ff', s: 'Harmony', d: dd((x) => x.harmony) },
-            { v: a?.smoothness ?? 0, l: '滑らかさ', c: '#7af0c4', s: 'Smooth', d: dd((x) => x.smoothness) },
-            { v: a?.rhythmClarity ?? 0, l: 'リズム明瞭', c: '#ffcf7a', s: 'Rhythm', d: dd((x) => x.rhythmClarity) },
-          ].map((g) => (
-            <div key={g.s} className="relative">
-              <Gauge value={g.v} label={g.l} color={g.c} sub={g.s} />
-              <span className="absolute right-0 top-0"><Delta v={g.d} threshold={0.1} /></span>
+      <Card className="p-4" delay={0}>
+        <SectionTitle title="音から読み取れること" />
+        <p className="mb-3 text-xs leading-relaxed text-[var(--tx-2)]">入力・提案・採用済みのメロディ全体を、発音順に計算しています。伴奏の音符は含みません。曲の良し悪しを採点するものではありません。</p>
+        {loading ? <AnalysisSkeleton /> : !a?.noteCount ? <p className="text-sm text-[var(--tx-2)]">音符を生成・入力すると、音の動きや使っている音階を説明します。</p> : <>
+          <dl className="analysis-observations space-y-4">
+            <div><dt className="text-sm font-semibold text-white">音の動き</dt><dd className="mt-1 text-[13px] leading-relaxed text-[var(--tx-2)]">{a.noteCount < 2 ? '比較するには2音以上必要です。' : `隣り合う${a.noteCount - 1}組のうち、5半音以上の跳躍が${a.intervalHist.slice(5).reduce((x, y) => x + y, 0)}回。1〜2半音の小さな動きは${a.intervalHist[1] + a.intervalHist[2]}回です。最大の動きは${a.maxLeap}半音。`}</dd></div>
+            <div><dt className="text-sm font-semibold text-white">選んだ音階との関係</dt><dd className="mt-1 text-[13px] leading-relaxed text-[var(--tx-2)]">{NOTE_NAMES[p.key]} {SCALES[p.scale].label}の音は{Math.round(a.inScaleRatio * a.noteCount)} / {a.noteCount}音（{Math.round(a.inScaleRatio * 100)}%）。音階外の音も表現として使えます。高いほど良いという評価ではありません。</dd></div>
+            <div><dt className="text-sm font-semibold text-white">リズムと繰り返し</dt><dd className="mt-1 text-[13px] leading-relaxed text-[var(--tx-2)]">{(() => { const onGrid = state.sequence.filter((n) => Math.abs(n.startTime / (60 / p.bpm) * 4 - Math.round(n.startTime / (60 / p.bpm) * 4)) < .18).length; return `16分音符の格子付近（±0.045拍）で始まる音は${onGrid} / ${a.noteCount}音。` })()} {a.noteCount < 8 ? '反復の比率は8音以上で計算します。' : `4音の音程・発音間隔パターンの反復に含まれる音は約${Math.round(a.motifRepetition * 100)}%。`}</dd></div>
+          </dl>
+          <details className="disclosure mt-4">
+            <summary>詳細な観測値・参考指標 <span>計算方法を見る</span></summary>
+            <div className="space-y-3 p-3 text-xs leading-relaxed text-[var(--tx-2)]">
+              <Row k="音素材の利用" v={`${Math.round(a.materialUsage * SCALES[p.scale].steps.length)} / ${SCALES[p.scale].steps.length}種類`} />
+              <p>選択中の音階に含まれる音名を、何種類使ったかです。オクターブ違いは同じ種類として数えます。</p>
+              <Row k="隣接音の協和・参考値" v={a.noteCount > 1 ? `${Math.round(a.consonance * 100)}%` : '対象なし'} />
+              <p>発音順に隣り合う音程へ固定の重み（同音・5度・オクターブ=1、半音=0.1など）を付けた平均です。同時に鳴る和音の評価や聴感の正解ではありません。</p>
+              <Row k="平均音程 / 最大跳躍" v={`${a.avgInterval.toFixed(1)} / ${a.maxLeap} 半音`} />
+              <Row k="シンコペーション候補" v={`${Math.round(a.syncopation * a.noteCount)}音`} />
+              <p>拍の途中（0.2〜0.8拍の位置）で始まり、0.9拍以上続く音の数。楽譜上の厳密なシンコペーション判定ではありません。</p>
+              <h4 className="pt-2 font-semibold text-white">旧表示の参考指数（0〜10の独自計算）</h4>
+              <p>学習用に残した概算です。AIによる採点・一般的な品質基準ではなく、比較の目安です。小数の精密な点数表示は行いません。</p>
+              <Row k="調和の参考指数" v={`${Math.round(a.harmony)} / 10`} />
+              <p>音階内の音の比率45%＋隣接音程の協和重み35%＋小節頭の主和音構成音の比率20%。伴奏との一致ではありません。</p>
+              <Row k="滑らかさの参考指数" v={`${Math.round(a.smoothness)} / 10`} />
+              <p>1〜2半音の動きの割合、平均音程の小ささ、跳躍後の逆向きの動きから計算し、同音の連続割合で補正します。</p>
+              <Row k="リズムの参考指数" v={`${Math.round(a.rhythmClarity)} / 10`} />
+              <p>16分格子付近の発音45%＋小節頭に音がある比率35%＋音の長さの種類数20%。自由なリズムの価値を否定する指標ではありません。</p>
+              <div className="mx-auto max-w-[240px]"><Radar axes={['調和(参考)', '滑らか(参考)', '格子(参考)', '反復', '跳躍', '音域']} values={radarOf(a)} prev={pv && pv.noteCount ? radarOf(pv) : null} /></div>
+              {pv && <p>破線は前の生成時点。長さや音符数が違う場合は単純な優劣比較はできません。</p>}
             </div>
-          ))}
-        </div>
-        {/* レーダー: 現在 vs 直前 (破線) */}
-        <div className="neu-inset mt-4 rounded-xl px-2 pb-1 pt-2">
-          <div className="flex items-center justify-between px-1">
-            <span className="text-[10.5px] text-[var(--tx-3)]">特徴</span>
-            {pv && <span className="flex items-center gap-1.5 text-[9.5px] text-[var(--tx-3)]"><i className="w-3 border-t border-dashed border-white/50" />前回</span>}
-          </div>
-          <div className="mx-auto max-w-[220px]">
-            <Radar axes={['調和', '滑らか', 'リズム', '反復', '跳躍', '音域']} values={radarOf(a)} prev={pv && pv.noteCount ? radarOf(pv) : null} />
-          </div>
-        </div>
-        {a && a.noteCount > 0 && (
-          <p className="mt-4 border-l-2 border-fuchsia-400/60 pl-3 text-[12px] leading-relaxed text-[var(--tx)]">
-            <span key={a.character} className="kt-swap inline-block">{a.character}</span>
-          </p>
-        )}
-        <div className="mt-3">
-          <Row k="スケール適合率" v={<AnimatedNumber value={(a?.inScaleRatio ?? 0) * 100} suffix="%" />} hl={(a?.inScaleRatio ?? 0) > 0.95 ? 'mint' : undefined} delay={40} />
-          <Row k="音素材利用率" v={<AnimatedNumber value={(a?.materialUsage ?? 0) * 100} suffix="%" />} hl={(a?.materialUsage ?? 0) >= 0.99 ? 'mint' : 'cy'} delay={80} />
-          <Row k="モチーフ反復度" v={<AnimatedNumber value={(a?.motifRepetition ?? 0) * 100} suffix="%" />} hl="mag" delay={120} d={<Delta v={(dd((x) => x.motifRepetition) ?? 0) * 100} decimals={0} suffix="%" threshold={1} />} />
-          <Row k="協和度" v={<AnimatedNumber value={(a?.consonance ?? 0) * 100} suffix="%" />} delay={160} d={<Delta v={(dd((x) => x.consonance) ?? 0) * 100} decimals={0} suffix="%" threshold={1} />} />
-          <Row k="平均音程 / 最大跳躍" v={<><AnimatedNumber value={a?.avgInterval ?? 0} decimals={1} /> / {a?.maxLeap ?? 0} st</>} delay={200} />
-          <Row k="シンコペーション" v={<AnimatedNumber value={(a?.syncopation ?? 0) * 100} suffix="%" />} delay={240} />
-        </div>
-        {a && a.noteCount > 1 && (
-          <div className="mt-3">
-            <div className="mb-1.5 flex justify-between text-[10px] text-[var(--tx-3)]">
-              <span>上行 {Math.round((a.contour.up / (a.noteCount - 1)) * 100)}%</span>
-              <span>同音 {Math.round((a.contour.same / (a.noteCount - 1)) * 100)}%</span>
-              <span>下行 {Math.round((a.contour.down / (a.noteCount - 1)) * 100)}%</span>
-            </div>
-            <div className="flex h-1 gap-0.5 overflow-hidden rounded-full">
-              <div className="barx-grow bg-[#ff5bd6]" style={{ width: `${(a.contour.up / (a.noteCount - 1)) * 100}%` }} />
-              <div className="barx-grow bg-white/30" style={{ width: `${(a.contour.same / (a.noteCount - 1)) * 100}%`, ['--d' as any]: '120ms' }} />
-              <div className="barx-grow bg-[#8b5cff]" style={{ width: `${(a.contour.down / (a.noteCount - 1)) * 100}%`, ['--d' as any]: '240ms' }} />
-            </div>
-          </div>
-        )}
+          </details>
         </>}
       </Card>
 
       {/* ---- Motif ---- */}
       <Card className="p-5" delay={200}>
-        <SectionTitle title="モチーフと楽式" />
+        <SectionTitle title="生成時のモチーフと楽式" />
+        <p className="mb-3 text-xs leading-relaxed text-[var(--tx-2)]">生成時点の構成図です。音符を編集した後の評価ではありません。現在のメロディの観測値は上の説明をご覧ください。</p>
         {loading ? (
           <div className="flex flex-col gap-2.5" aria-busy="true">
             <div className="flex justify-between"><Skeleton className="h-3 w-24" /><Skeleton className="h-3 w-16" /></div>
@@ -328,7 +272,8 @@ function Progression({ harmony, bpb, spb }: { harmony: HarmonyResult; bpb: numbe
   const pts = cs.map((c) => [((c.startBeat + c.lengthBeats / 2) / totalBeats) * W, lv[c.func]] as const)
   return (
     <Card className="p-5" delay={230}>
-      <SectionTitle title="コード進行" right={<span className="num text-[10.5px] text-[var(--tx-3)]">一致 {Math.round(fitAvg * 100)}%</span>} />
+      <SectionTitle title="コード進行" right={<span className="num text-xs text-[var(--tx-2)]">適合・参考 {Math.round(fitAvg * 100)}%</span>} />
+      <p className="mb-3 text-xs leading-relaxed text-[var(--tx-2)]">各区間のメロディ音と、候補の三和音の構成音（重み1）と7thの音（重み0.6）の重なりを、長さと拍位置で重み付けした値です。休符区間は便宜的に50%とします。区間の長さで平均しており、曲全体の正解率ではありません。</p>
       <div ref={box} className="flex flex-col gap-1">
         {Array.from({ length: Math.ceil(bars / perRow) }).map((_, r) => (
           <div key={r} className="grid gap-1" style={{ gridTemplateColumns: `repeat(${perRow * bpb}, minmax(0,1fr))` }}>
@@ -341,7 +286,7 @@ function Progression({ harmony, bpb, spb }: { harmony: HarmonyResult; bpb: numbe
                   data-ci={ci}
                   className="prog-cell prog-chip relative min-w-0 overflow-hidden rounded-lg px-1.5 py-1.5"
                   style={{ gridColumn: `${col} / span ${Math.max(1, Math.round(c.lengthBeats))}`, ['--fc' as any]: FUNC_COLOR[c.func], animationDelay: `${Math.min(800, ci * 50)}ms` }}
-                  title={`${c.name} (${c.roman}) · ${FUNC_JA[c.func]} · 一致 ${Math.round(c.fit * 100)}%`}
+                  title={`${c.name} (${c.roman}) · ${FUNC_JA[c.func]} · 適合の参考値 ${Math.round(c.fit * 100)}%`}
                 >
                   <span className="num block truncate text-[12px] font-semibold leading-tight text-white">{c.name}</span>
                   <span className="num block truncate text-[9px] leading-tight text-white/50">{c.roman}</span>
