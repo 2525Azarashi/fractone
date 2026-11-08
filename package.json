@@ -8,9 +8,11 @@
     "preview": "wrangler pages dev",
     "dev:sandbox": "wrangler pages dev dist --ip 0.0.0.0 --port 3000",
     "deploy": "npm run build && wrangler pages deploy",
-    "typecheck": "tsc -p ."
+    "typecheck": "tsc -p .",
+    "build:vercel": "npm run build:client && vite build --mode vercel"
   },
   "dependencies": {
+    "@hono/node-server": "^1.19.18",
     "hono": "^4.13.8",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
