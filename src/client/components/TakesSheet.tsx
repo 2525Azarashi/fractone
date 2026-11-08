@@ -3,7 +3,7 @@
 //  BottomSheet + SwipeRow (右へ: お気に入り / 左へ: 削除 → トーストで元に戻す)
 //  生成中のテイクは Skeleton で表示
 // ============================================================
-import type { Note } from '../../lib/types'
+import type { ComposeParams, Note } from '../../lib/types'
 import { NOTE_NAMES, SCALES } from '../../lib/theory'
 import { BottomSheet, Skeleton, SwipeRow } from './patterns'
 import { IStar, IStarF, ITrash } from './icons'
@@ -19,6 +19,10 @@ export interface Take {
   bpm: number
   notes: Note[]
   fav: boolean
+  params?: ComposeParams
+  audio?: import('../../lib/audio-engine').AudioSettings
+  harmony?: import('../../lib/chord-generator').HarmonyParams
+  chordsOn?: boolean
   stats: { harmony: number; motif: number; smooth: number }
 }
 
@@ -65,11 +69,11 @@ export function TakesSheet({ open, onClose, takes, pending, currentId, onLoad, o
       footer={
         <div className="flex items-center justify-between gap-3">
           <p className="text-[10.5px] leading-snug text-[var(--tx-3)]">右へスワイプでお気に入り · 左へスワイプで削除 · タップで読み込み</p>
-          <button className="btn-primary shrink-0 rounded-xl px-4 py-2 text-[12px] font-medium" onClick={onReroll} disabled={pending}>別案を作曲</button>
+          <button className="btn-ghost shrink-0 rounded-xl px-4 py-2 text-[12px] font-medium" onClick={onClose}>曲づくりに戻る</button>
         </div>
       }
     >
-      <div className="flex flex-col gap-2 pt-1">
+      <div className="flex flex-col gap-2 pt-1"><p className="px-2 py-2 text-xs leading-relaxed text-[var(--tx-2)]">このブラウザに最大24件保存（お気に入り優先）。読み込んで再生すると比較できます。切替前の編集内容も残します。容量不足時は保存エラーを表示します。</p>
         {pending && (
           <div className="flex items-center gap-3 rounded-xl border border-[var(--line)] bg-white/[0.02] px-3 py-3" aria-busy="true">
             <Skeleton className="h-[34px] w-[120px]" />
@@ -83,7 +87,7 @@ export function TakesSheet({ open, onClose, takes, pending, currentId, onLoad, o
         {!pending && takes.length === 0 && (
           <div className="px-4 py-12 text-center">
             <p className="text-[13px] text-[var(--tx-2)]">まだテイクがありません</p>
-            <p className="mt-1 text-[11px] text-[var(--tx-3)]">「続きを作曲」するたびに、ここへ自動で保存されます</p>
+            <p className="mt-1 text-[11px] text-[var(--tx-3)]">生成した案と、別案へ切り替える前の編集内容をここに残します。</p>
           </div>
         )}
         {sorted.map((t, i) => (
@@ -94,24 +98,25 @@ export function TakesSheet({ open, onClose, takes, pending, currentId, onLoad, o
               right={{ label: '削除', color: '#ff6b8a', icon: <ITrash size={14} />, run: () => onDelete(t) }}
             >
               <div className={`flex cursor-pointer items-center gap-3 rounded-xl border px-3 py-2.5 transition-colors ${currentId === t.id ? 'border-fuchsia-300/40 bg-fuchsia-400/[0.07]' : 'border-[var(--line)] bg-[#16111f] hover:border-[var(--line-2)]'}`}>
-                <MiniRoll notes={t.notes} />
+                <div className="hidden sm:block"><MiniRoll notes={t.notes} /></div>
                 <div className="min-w-0 flex-1">
                   <p className="flex items-center gap-1.5 truncate text-[12.5px] font-medium text-white">
                     {t.fav && <IStarF size={12} className="shrink-0 text-amber-200" />}
                     {t.name}
-                    {currentId === t.id && <span className="rounded bg-fuchsia-400/20 px-1.5 text-[9px] font-semibold text-fuchsia-200">再生中の案</span>}
+                    {currentId === t.id && <span className="rounded bg-fuchsia-400/20 px-1.5 text-[9px] font-semibold text-fuchsia-200">選択中の案</span>}
                   </p>
                   <p className="num mt-0.5 truncate text-[10px] text-[var(--tx-3)]">
                     {NOTE_NAMES[t.key]} {SCALES[t.scale].label} · {t.bpm}bpm · seed {t.seed} · {ago(t.at)}
                   </p>
                 </div>
-                <div className="hidden shrink-0 grid-cols-3 gap-2 text-center sm:grid">
-                  {[['調和', t.stats.harmony.toFixed(1)], ['反復', `${Math.round(t.stats.motif * 100)}%`], ['滑らか', t.stats.smooth.toFixed(1)]].map(([k, v]) => (
-                    <div key={k}><p className="text-[9px] text-[var(--tx-3)]">{k}</p><p className="num text-[11px] text-[var(--tx)]">{v}</p></div>
-                  ))}
-                </div>
+                <span className="text-xs text-[var(--tx-2)]">{t.notes.length}音</span>
               </div>
             </SwipeRow>
+            <div className="mt-1 flex flex-wrap justify-end gap-2" onPointerDown={(e) => e.stopPropagation()}>
+              <button className="btn-ghost rounded-lg px-3 text-xs" onClick={() => onLoad(t)} disabled={pending} aria-label={`${t.name}を読み込み`}>この案を読み込み</button>
+              <button className="btn-ghost rounded-lg px-3 text-xs" onClick={() => onFav(t)} aria-label={`${t.name}を${t.fav ? 'お気に入り解除' : 'お気に入りに追加'}`}>{t.fav ? 'お気に入り解除' : 'お気に入り'}</button>
+              <button className="rounded-lg px-3 text-xs text-rose-200" onClick={() => onDelete(t)} aria-label={`${t.name}を削除`}>削除</button>
+            </div>
           </div>
         ))}
       </div>

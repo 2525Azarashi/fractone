@@ -1,3 +1,4 @@
+import { useDialogFocus } from './ui'
 // ============================================================
 // patterns.tsx — モバイル由来のインタラクション・パターン
 //   Toaster      : スタック/スワイプで消去/残り時間バー/アクション(元に戻す 等)
@@ -140,6 +141,7 @@ export function BottomSheet({ open, onClose, title, eyebrow, children, footer }:
   const [mounted, setMounted] = useState(open)
   const [snap, setSnap] = useState<'half' | 'full'>('half')
   const sheet = useRef<HTMLDivElement>(null)
+  useDialogFocus(open && mounted, sheet)
   const drag = useRef<{ y0: number; h0: number; last: number; t: number; v: number } | null>(null)
 
   useEffect(() => {

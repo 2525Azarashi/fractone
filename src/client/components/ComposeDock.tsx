@@ -1,90 +1,52 @@
-// ============================================================
-// ComposeDock — ピアノロール直上の作曲ドック
-//  生成ボタンを編集中の音符のすぐ近くに置き、主要パラメータもワンタッチで調整
-//  Live モード ON: 生成後はスライダーを動かすたびに即時再作曲 (因果がその場で見える)
-// ============================================================
-import type { Dispatch } from 'react'
-import type { Action, State } from '../state'
-import { IArrowR, IDice, IWand, ISpark } from './icons'
-import { Magnetic, ScrambleText } from './fx'
+// The next action is derived from actual notes, not transient generation metadata.
+import { noteCounts, type State } from '../state'
+import { ICheck, IDice, IPlay, IPause, ISpark } from './icons'
 
-function MiniParam({ label, value, display, min, max, step, onChange }: { label: string; value: number; display: string; min: number; max: number; step: number; onChange: (v: number) => void }) {
-  const pct = ((value - min) / (max - min)) * 100
-  return (
-    <label className="group flex min-w-[96px] flex-1 flex-col gap-0.5 px-3 py-1.5" title={label}>
-      <span className="flex items-baseline justify-between gap-2">
-        <span className="text-[10px] text-[var(--tx-3)] transition-colors group-hover:text-[var(--tx-2)]">{label}</span>
-        <span key={display} className="roll-num num text-[11px] font-semibold text-white">{display}</span>
-      </span>
-      <input type="range" className="slider" min={min} max={max} step={step} value={value} style={{ ['--p' as any]: `${pct}%` }} onChange={(e) => onChange(Number(e.target.value))} />
-    </label>
-  )
-}
-
-export function ComposeDock({ state, dispatch, onContinue, onGenerate, onReroll, busy }: {
-  state: State; dispatch: Dispatch<Action>; onContinue: () => void; onGenerate: () => void; onReroll: () => void; busy: boolean
+export function ComposeDock({ state, onContinue, onGenerate, onReroll, busy, onPlay, onAccept, onTakes, onSave, auditioned = false, takeCount = 0 }: {
+  state: State; onContinue: () => void; onGenerate: () => void; onReroll: () => void; busy: boolean
+  onPlay: () => void; onAccept: () => void; onTakes: () => void; onSave: () => void; auditioned?: boolean; takeCount?: number
 }) {
-  const p = state.params
-  const set = (patch: Partial<State['params']>) => dispatch({ type: 'params', patch })
-  const userCount = state.sequence.filter((n) => n.source !== 'ai').length
-  const canContinue = userCount >= 2
-  const liveOn = state.live && !!state.result
-
+  const counts = noteCounts(state.sequence)
+  const playing = state.status === 'playing'
+  const locked = busy || state.status === 'recording'
+  const hasNotes = state.sequence.length > 0
+  const canContinue = counts.fixed >= 2 && !counts.proposed
+  const label = busy ? 'メロディを生成中…' : playing ? '一時停止' : counts.proposed ? (auditioned ? 'この提案を採用' : '再生して聴く') : canContinue ? '続きを作曲' : 'メロディを生成'
+  const action = playing ? onPlay : counts.proposed ? (auditioned ? onAccept : onPlay) : canContinue ? onContinue : onGenerate
+  const hint = busy ? '前の案を残しながら計算しています。少しお待ちください。'
+    : state.status === 'recording' ? '録音を停止すると生成・採用できます。'
+    : counts.proposed ? `AI提案 ${counts.proposed}音。${auditioned ? '気に入ったら採用、迷ったら別案と比較できます。' : 'まずは聴いてみましょう。採用するまでは提案のまま編集できます。'}`
+    : canContinue ? `確定した ${counts.fixed}音を残して、${state.params.bars}小節の続きを提案します。`
+    : '左（スマートフォンでは上）で雰囲気を選び、最初のメロディを作りましょう。'
   return (
-    <div className="neu-inset spot relative flex flex-col gap-1 rounded-2xl p-1.5 md:flex-row md:flex-wrap md:items-stretch xl:flex-nowrap">
-      <div className="flex shrink-0 items-stretch gap-1.5">
-        <Magnetic strength={0.12} className="flex flex-1 md:flex-none">
-          <button
-            onClick={onContinue}
-            disabled={busy || !canContinue}
-            className="btn-primary group flex w-full items-center gap-3 rounded-xl py-2 pl-3 pr-4 text-left"
-            title={canContinue ? 'あなたのメロディからモチーフを判断し、中点変位法で続きを作曲' : '2音以上入力すると使えます'}
-          >
-            <span className="grid h-8 w-8 place-items-center rounded-lg bg-white/15">
-              {busy ? <span className="spin h-3.5 w-3.5 rounded-full border-2 border-white/40 border-t-white" /> : <ISpark size={17} className="transition-transform duration-700 group-hover:rotate-90" />}
-            </span>
-            <span className="leading-tight">
-              <span className="block text-[13px] font-semibold">
-                <ScrambleText text={busy ? '作曲中…' : '続きを作曲'} duration={380} />
-              </span>
-              <span className="num block text-[10px] text-white/70">{userCount} 音 → +{p.bars} 小節</span>
-            </span>
-            <IArrowR size={15} className="opacity-70 transition-transform duration-300 group-hover:translate-x-1" />
-            {busy && <span className="scan" />}
-          </button>
-        </Magnetic>
-        <button onClick={onGenerate} disabled={busy} className="btn-ghost group flex items-center gap-2 rounded-xl px-3 text-[12.5px] font-medium" title="モチーフを新しく作ってゼロから作曲">
-          <IWand size={16} className="text-fuchsia-300 transition-transform duration-500 group-hover:-rotate-12" />
-          <span className="hidden sm:inline">新規生成</span>
-        </button>
-        <button onClick={onReroll} disabled={busy || !state.result} className="btn-ghost group grid w-10 place-items-center rounded-xl" title="シードを変えて別案を生成">
-          <IDice size={16} className="transition-transform duration-500 group-hover:rotate-180" />
+    <div className="compose-guide" aria-busy={busy}>
+      <ol className="workflow-steps" aria-label="曲づくりの流れ">
+        {['設定を選ぶ', '生成する', '聴く', '採用・別案', '編集・書き出し'].map((step, i) => <li key={step} aria-current={(busy ? i === 1 : !hasNotes ? i === 0 : counts.proposed ? i === (auditioned ? 3 : 2) : i === 4) ? 'step' : undefined}><span>{i + 1}</span>{step}</li>)}
+      </ol>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <h2 className="text-lg font-semibold text-white">{hasNotes ? 'メロディを育てよう' : 'まずは、ひとつのメロディから。'}</h2>
+          <p id="compose-hint" className="mt-1 text-[13px] leading-relaxed text-[var(--tx-2)]" role="status">{hint}</p>
+        </div>
+        <button className="btn-primary main-compose flex items-center justify-center gap-2 rounded-xl px-6 py-3 text-[15px] font-semibold" onClick={action} disabled={locked} aria-describedby="compose-hint">
+          {busy ? <span className="spin h-4 w-4 rounded-full border-2 border-white/40 border-t-white" /> : playing ? <IPause size={18} /> : counts.proposed ? (auditioned ? <ICheck size={18} /> : <IPlay size={18} />) : <ISpark size={18} />}
+          {label}
         </button>
       </div>
-
-      <span className="mx-1 hidden w-px self-stretch bg-[var(--line)] xl:block" />
-      <span className="hairline-x md:hidden" />
-
-      <div className="grid min-w-0 flex-1 grid-cols-2 items-center sm:flex sm:flex-wrap">
-        <MiniParam label="小節数" value={p.bars} display={`${p.bars}`} min={2} max={32} step={2} onChange={(v) => set({ bars: v })} />
-        <MiniParam label="変位強度" value={p.displacement} display={p.displacement.toFixed(2)} min={0} max={1} step={0.01} onChange={(v) => set({ displacement: v })} />
-        <MiniParam label="分解深度" value={p.depth} display={`Lv${p.depth}`} min={1} max={7} step={1} onChange={(v) => set({ depth: v })} />
-        <MiniParam label="反復度" value={p.motifStrength} display={`${Math.round(p.motifStrength * 100)}%`} min={0} max={1} step={0.01} onChange={(v) => set({ motifStrength: v })} />
+      <div className="mt-3 flex flex-wrap gap-2">
+        {counts.proposed > 0 && <button className="btn-ghost rounded-lg px-3 text-sm" onClick={onAccept} disabled={locked || playing}>提案 {counts.proposed}音を採用</button>}
+        <button className="btn-ghost flex items-center gap-2 rounded-lg px-3 text-sm" onClick={onReroll} disabled={locked || playing || !counts.proposed} aria-describedby="continue-reason"><IDice size={16} />別案を生成</button>
+        {!canContinue && <button className="btn-ghost rounded-lg px-3 text-sm" onClick={onContinue} disabled={locked || playing || !canContinue} aria-describedby="continue-reason">続きを作曲（+{state.params.bars}小節）</button>}
+        {hasNotes && <button className="btn-ghost rounded-lg px-3 text-sm" onClick={onGenerate} disabled={locked || playing}>新規生成（全体を作り直す）</button>}
+        <button className="btn-ghost rounded-lg px-3 text-sm" onClick={onTakes} disabled={busy}>保存した案を比較（{takeCount}）</button>
+        <button className="btn-ghost rounded-lg px-3 text-sm" onClick={onSave} disabled={locked || !hasNotes}>MIDI書き出し</button>
       </div>
-
-      {/* Live トグル */}
-      <button
-        onClick={() => dispatch({ type: 'toggle', key: 'live' })}
-        className={`flex shrink-0 items-center justify-center gap-2 rounded-xl border px-3 py-2 text-[11px] font-medium transition-colors md:flex-col md:gap-1 md:py-1 ${state.live ? 'border-emerald-300/25 bg-emerald-300/[0.06] text-emerald-200' : 'border-[var(--line)] text-[var(--tx-3)] hover:text-[var(--tx)]'}`}
-        title="即時反映: 生成後、スライダーを動かすとその場で作曲し直します"
-        aria-pressed={state.live}
-      >
-        <span className="relative flex h-2 w-2 items-center justify-center">
-          {liveOn && <span className="live-dot absolute h-2 w-2 rounded-full bg-emerald-300" />}
-          <span className={`h-1.5 w-1.5 rounded-full ${state.live ? 'bg-emerald-300' : 'bg-white/25'}`} />
-        </span>
-        <span className="text-[10px] font-medium text-current">即時反映</span>
-      </button>
+      <p id="continue-reason" className="mt-2 text-xs leading-relaxed text-[var(--tx-2)]">
+        {counts.proposed ? '続きは提案を採用すると作れます。別案は未採用部分のみ差し替え、現在の案はテイクに残します。' : counts.fixed < 2 ? '続きの作曲には、入力または採用済みの音符が2音以上必要です。別案は生成後に使えます。' : '新しい曲を生成しても現在の案はテイクに残ります。直前の編集・生成はUndoで戻せます。'}
+      </p>
+      <div className="note-legend mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs" aria-label="音符の状態">
+        <span data-kind="input">● 入力 {counts.input}音</span><span data-kind="proposed">◇ AI提案 {counts.proposed}音</span><span data-kind="accepted">✓ 採用済み {counts.accepted}音</span>
+      </div>
     </div>
   )
 }

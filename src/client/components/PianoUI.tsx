@@ -53,6 +53,12 @@ export const PianoKey = memo(function PianoKey({ midi, on, ai, label, inKey, isT
     <button
       type="button"
       aria-label={midiToName(midi)}
+      aria-pressed={on}
+      title={`${midiToName(midi)}${label ? `（${label}）` : ''}：Enter／Spaceでも演奏できます`}
+      onKeyDown={(e) => { if ((e.key === 'Enter' || e.key === ' ') && !e.repeat) { e.preventDefault(); e.stopPropagation(); down.current = true; onPress(midi) } }}
+      onKeyUp={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); release() } }}
+      onBlur={release}
+      onPointerCancel={release}
       data-on={on}
       data-ai={!on && ai}
       onPointerDown={press}
@@ -73,8 +79,8 @@ export const PianoKey = memo(function PianoKey({ midi, on, ai, label, inKey, isT
       {on && <span className="pop-in num pointer-events-none absolute -top-6 left-1/2 -translate-x-1/2 rounded-md bg-[#0d0a15] px-1.5 py-0.5 text-[9px] font-medium text-white ring-1 ring-white/15">{midiToName(midi)}</span>}
       {!black && inKey && <span className={`mb-1 h-1.5 w-1.5 rounded-full ${isTonic ? 'bg-[#ff5bd6]' : 'bg-black/15'}`} />}
       {black && inKey && <span className="mb-1 h-1 w-1 rounded-full bg-black/20" />}
-      {label && <span className={`mb-1.5 font-mono text-[9px] font-medium ${black ? 'text-[var(--tx-3)]' : 'text-black/35'}`}>{label}</span>}
-      {!black && midi % 12 === 0 && <span className="mb-1 text-[8.5px] font-semibold text-black/45">{midiToName(midi)}</span>}
+      {label && <span className={`mb-1.5 font-mono text-[9px] font-medium ${black ? 'text-[var(--tx-2)]' : 'text-black/70'}`}>{label}</span>}
+      {!black && midi % 12 === 0 && <span className="mb-1 text-[8.5px] font-semibold text-black/70">{midiToName(midi)}</span>}
     </button>
   )
 })

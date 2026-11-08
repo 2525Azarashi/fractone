@@ -7,12 +7,14 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { SplashCanvas, type SplashFeed } from './SplashCanvas'
 import { ProximityWord, Magnetic } from './fx'
-import { RiseText } from './ui'
+import { RiseText, useDialogFocus } from './ui'
 import { IArrowR } from './icons'
 
 const LEVEL_COL = ['#ffffff', '#ff5bd6', '#d34cff', '#a855ff', '#8b5cff', '#6b7bff', '#4fb8ff', '#4fe3ff']
 
 export function Splash({ onStart }: { onStart: () => void }) {
+  const dialog = useRef<HTMLDivElement>(null)
+  useDialogFocus(true, dialog)
   const [leaving, setLeaving] = useState(false)
   const [lv, setLv] = useState(0)
   const DEPTH = 7
@@ -64,7 +66,7 @@ export function Splash({ onStart }: { onStart: () => void }) {
   // スプラッシュ表示中はキー入力を独占 (アプリ側のショートカットに流さない)
   useEffect(() => {
     const on = (e: KeyboardEvent) => {
-      e.stopImmediatePropagation()
+      if ((e.target as HTMLElement).closest('button')) return
       if (e.key === 'Enter' || e.code === 'Space') { e.preventDefault(); start() }
     }
     window.addEventListener('keydown', on, true)
@@ -72,7 +74,7 @@ export function Splash({ onStart }: { onStart: () => void }) {
   }, [])
 
   return (
-    <div className={`fixed inset-0 z-[100] overflow-hidden bg-[#0a0812] ${leaving ? 'wipe-out splash-leaving pointer-events-none' : ''}`}>
+    <div ref={dialog} role="dialog" aria-modal="true" aria-label="FracToneへようこそ" tabIndex={-1} className={`fixed inset-0 z-[100] overflow-hidden bg-[#0a0812] ${leaving ? 'wipe-out splash-leaving pointer-events-none' : ''}`}>
       {/* 生きている中点変位 (canvas) */}
       <SplashCanvas feed={feed} leaving={leaving} />
       {/* グレイン + ビネット */}
@@ -115,9 +117,9 @@ export function Splash({ onStart }: { onStart: () => void }) {
           </h1>
           <div className="mt-7 flex flex-wrap items-end gap-x-12 gap-y-4">
             <p className="splash-fade max-w-md text-[15px] leading-relaxed text-[var(--tx-2)]">
-              <RiseText delay={620}>あなたが弾いたメロディの続きを、</RiseText>
+              <RiseText delay={620}>雰囲気を選んで、メロディを生成。</RiseText>
               <br />
-              <RiseText delay={700}>中点変位法とモチーフ展開で作曲する。</RiseText>
+              <RiseText delay={700}>聴いて、採用して、あなたの曲に。</RiseText>
             </p>
 
           </div>
@@ -125,7 +127,7 @@ export function Splash({ onStart }: { onStart: () => void }) {
 
         <div className="flex flex-wrap items-end justify-between gap-6">
           <ol className="splash-fade fade-up grid grid-cols-3 gap-6 md:gap-12" style={{ ['--d' as any]: '1000ms' }}>
-            {['鍵盤で弾く', '続きを作曲', '分析して学ぶ'].map((t) => (
+            {['雰囲気を選ぶ', '生成して聴く', '編集して書き出す'].map((t) => (
               <li key={t} className="border-t border-[var(--line-2)] pt-3">
                 <p className="text-[13px] text-[var(--tx)]">{t}</p>
               </li>

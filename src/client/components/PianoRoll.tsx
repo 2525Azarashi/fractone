@@ -15,7 +15,7 @@ import { FUNC_COLOR } from './NowPlaying'
 
 const LOW = 36
 const HIGH = 96
-const ROW = 15
+const ROW = 18
 const LABEL_W = 54
 const RULER_BASE = 34
 const CHORD_LANE = 19
@@ -35,6 +35,8 @@ function PianoRollImpl({ state, dispatch, harmony = null }: { state: State; disp
   const { sequence, params, selected, result, snap, generation } = state
   const spb = 60 / params.bpm
   const { beatsPerBar } = TIME_SIGS[params.timeSig]
+  const [touchEdit, setTouchEdit] = useState(false)
+  const locked = ['composing', 'playing', 'recording'].includes(state.status)
   const [ppb, setPpb] = useState(46) // pixels per beat
   const scroller = useRef<HTMLDivElement>(null)
   const svgRef = useRef<SVGSVGElement>(null)
@@ -103,6 +105,7 @@ function PianoRollImpl({ state, dispatch, harmony = null }: { state: State; disp
   const snapB = (b: number) => Math.round(b / snap) * snap
 
   const onNoteDown = (e: React.PointerEvent, n: Note, mode: 'move' | 'resize') => {
+    if (locked || (e.pointerType === 'touch' && !touchEdit)) return
     e.stopPropagation()
     if (e.button === 2) return
     let sel = selected
@@ -122,7 +125,7 @@ function PianoRollImpl({ state, dispatch, harmony = null }: { state: State; disp
   }
 
   const onBgDown = (e: React.PointerEvent) => {
-    if (e.button !== 0) return
+    if (locked || (e.pointerType === 'touch' && !touchEdit) || e.button !== 0) return
     const p = toLocal(e)
     if (!e.shiftKey) dispatch({ type: 'select', ids: [] })
     drag.current = { mode: 'marquee', x0: p.x, y0: p.y, orig: new Map(), lastDb: 0, lastDp: 0, moved: false }
@@ -208,6 +211,7 @@ function PianoRollImpl({ state, dispatch, harmony = null }: { state: State; disp
   }
 
   const onDouble = (e: React.MouseEvent) => {
+    if (locked || (e.target as Element).closest('[data-note-id]')) return
     const p = toLocal(e)
     const beat = Math.max(0, Math.floor(p.x / ppb / snap) * snap)
     const midi = Math.round(HIGH - p.y / ROW + 0.5)
@@ -308,13 +312,14 @@ function PianoRollImpl({ state, dispatch, harmony = null }: { state: State; disp
 
   return (
     <div className="relative h-full">
+      <button className="touch-edit-toggle absolute right-3 top-2 z-40 rounded-lg border border-[var(--line-2)] bg-[#15111e] px-3 text-xs" aria-pressed={touchEdit} disabled={locked} onClick={() => setTouchEdit((v) => !v)}>{touchEdit ? 'タッチ編集 ON' : 'タッチ編集 OFF（スクロール）'}</button>
       {/* zoom */}
       <div className="absolute bottom-3 right-3 z-40 flex items-center gap-0.5 rounded-lg border border-[var(--line)] bg-[#0d0a15]/85 p-0.5 backdrop-blur">
         <button className="h-6 w-6 rounded-md text-[13px] text-[var(--tx-2)] hover:bg-white/10 hover:text-white" onClick={() => setPpb((z) => Math.max(18, z / 1.2))} aria-label="縮小">−</button>
         <span className="num w-10 text-center text-[10px] text-[var(--tx-3)]">{Math.round(ppb)}px</span>
         <button className="h-6 w-6 rounded-md text-[13px] text-[var(--tx-2)] hover:bg-white/10 hover:text-white" onClick={() => setPpb((z) => Math.min(140, z * 1.2))} aria-label="拡大">＋</button>
       </div>
-      <div ref={scroller} className="thin-scroll neu-inset h-full overflow-auto rounded-2xl" onPointerDown={() => (follow.current = true)}>
+      <div ref={scroller} tabIndex={0} role="region" aria-label="ピアノロールのスクロール領域" className="thin-scroll neu-inset h-full overflow-auto rounded-2xl" onPointerDown={() => (follow.current = true)}>
         <div className="relative" style={{ display: 'grid', gridTemplateColumns: `${LABEL_W}px ${W}px`, gridTemplateRows: `${RULER_H}px ${H}px` }}>
           {/* corner */}
           <div className="eyebrow sticky left-0 top-0 z-30 flex items-center justify-center border-b border-r border-[var(--line)] bg-[#0e0b16] !text-[8px]">
@@ -322,7 +327,7 @@ function PianoRollImpl({ state, dispatch, harmony = null }: { state: State; disp
           {/* ruler */}
           <div className="sticky top-0 z-20 cursor-pointer border-b border-[var(--line)] bg-[#0e0b16]/95 backdrop-blur" onPointerDown={seekRuler}>
             {Array.from({ length: totalBars }).map((_, i) => (
-              <div key={i} className="num absolute top-0 h-full border-l border-white/10 pl-1.5 pt-1 text-[9.5px] text-[var(--tx-3)]" style={{ left: i * beatsPerBar * ppb }}>
+              <div key={i} className="num absolute top-0 h-full border-l border-white/20 pl-1.5 pt-1 text-[12px] text-[var(--tx-3)]" style={{ left: i * beatsPerBar * ppb }}>
                 {i + 1}
               </div>
             ))}
@@ -350,6 +355,9 @@ function PianoRollImpl({ state, dispatch, harmony = null }: { state: State; disp
                 type="button"
                 onPointerDown={(e) => {
                   e.stopPropagation()
+                }}
+                onClick={(e) => {
+                  e.stopPropagation()
                   // 根音を G3〜F#4 に置き、構成音を上に積む + 1オクターブ下にベース
                   const base = 55 + ((c.root - 7 + 12) % 12)
                   ;[base - 12, ...c.pcs.map((pc) => base + ((pc - c.root + 12) % 12))].forEach((m, k) => setTimeout(() => audio.preview(m, 0.9, 0.55), k * 22))
@@ -361,7 +369,8 @@ function PianoRollImpl({ state, dispatch, harmony = null }: { state: State; disp
                   ['--fc' as any]: FUNC_COLOR[c.func],
                   animationDelay: `${Math.min(900, i * 45)}ms`,
                 }}
-                title={`${c.name} (${c.roman}) — メロディとの一致 ${Math.round(c.fit * 100)}%`}
+                aria-label={`${c.name}の和音を試聴`}
+                title={`${c.name} (${c.roman}) — メロディとの適合の参考値 ${Math.round(c.fit * 100)}%`}
               >
                 <span className="truncate">{c.name}</span>
                 {c.lengthBeats * ppb > 70 && <span className="truncate font-normal text-white/45">{c.roman}</span>}
@@ -380,10 +389,10 @@ function PianoRollImpl({ state, dispatch, harmony = null }: { state: State; disp
                 <div
                   key={m}
                   onPointerDown={() => audio.preview(m, 0.3)}
-                  className={`flex cursor-pointer items-center justify-end pr-1.5 font-mono text-[8.5px] transition-colors duration-100 ${isBlack(m) ? 'bg-[#0a0810] text-white/25' : 'bg-[#15111e] text-white/45'} ${m % 12 === 0 ? 'font-semibold !text-white/80' : ''}`}
+                  className={`flex cursor-pointer items-center justify-end pr-1.5 font-mono text-[10px] transition-colors duration-100 ${isBlack(m) ? 'bg-[#0a0810] text-white/65' : 'bg-[#15111e] text-white/80'} ${m % 12 === 0 ? 'font-semibold !text-white/80' : ''}`}
                   style={{ height: ROW, borderBottom: '1px solid rgba(0,0,0,.4)', background: active ? 'linear-gradient(90deg,transparent,rgba(255,91,214,.55))' : undefined, color: active ? '#fff' : undefined }}
                 >
-                  {m % 12 === 0 || !isBlack(m) ? midiToName(m) : ''}
+                  {midiToName(m)}
                 </div>
               )
             })}
@@ -394,7 +403,9 @@ function PianoRollImpl({ state, dispatch, harmony = null }: { state: State; disp
               ref={svgRef}
               width={W}
               height={H}
-              className="block touch-none select-none"
+              className="block select-none"
+              style={{ touchAction: touchEdit ? 'none' : 'pan-x pan-y' }}
+              aria-label="ピアノロール。音符の選択は上の編集する音符メニューでも行えます。"
               onPointerDown={onBgDown}
               onPointerMove={onMove}
               onPointerUp={onUp}
@@ -411,6 +422,7 @@ function PianoRollImpl({ state, dispatch, harmony = null }: { state: State; disp
                   <stop offset="0%" stopColor="#4fe3ff" />
                   <stop offset="100%" stopColor="#6b7bff" />
                 </linearGradient>
+                <linearGradient id="gAccepted" x1="0" x2="1"><stop offset="0%" stopColor="#7af0c4" /><stop offset="100%" stopColor="#38a6a1" /></linearGradient>
                 <pattern id="aiHatch" width="10" height="10" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
                   <line x1="0" y1="0" x2="0" y2="10" stroke="rgba(79,227,255,0.035)" strokeWidth="4" />
                 </pattern>
@@ -425,6 +437,7 @@ function PianoRollImpl({ state, dispatch, harmony = null }: { state: State; disp
                 const y = yOf(n.midiNoteNumber) + 1
                 const sel = selSet.has(n.id)
                 const ai = n.source === 'ai'
+                const kind = ai ? 'AI提案' : n.accepted ? '採用済み' : '入力'
                 const motif = n.tag?.includes('•')
                 const vel = n.velocity ?? 0.8
                 return (
@@ -434,6 +447,13 @@ function PianoRollImpl({ state, dispatch, harmony = null }: { state: State; disp
                       if (el) noteEls.current.set(n.id, el)
                       else noteEls.current.delete(n.id)
                     }}
+                    data-note-id={n.id}
+                    data-source={ai ? 'proposed' : n.accepted ? 'accepted' : 'input'}
+                    role="button"
+                    tabIndex={locked ? -1 : (sel || idx === 0 ? 0 : -1)}
+                    aria-label={`${midiToName(n.midiNoteNumber)}・${kind}・${(n.startTime / spb + 1).toFixed(2)}拍目・長さ${(n.duration / spb).toFixed(2)}拍`}
+                    aria-pressed={sel}
+                    onKeyDown={(e) => { if (!locked && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); e.stopPropagation(); dispatch({ type: 'select', ids: [n.id] }); audio.preview(n.midiNoteNumber, .2) } }}
                     data-s={n.startTime}
                     data-e={n.startTime + n.duration}
                     className={ai && n.id.startsWith('ai') ? (state.status === 'done' || state.status === 'idle' ? (liveRef.current ? 'note-fade' : 'note-pop') : 'note-pop') : ''}
@@ -445,20 +465,22 @@ function PianoRollImpl({ state, dispatch, harmony = null }: { state: State; disp
                       width={w}
                       height={ROW - 2}
                       rx={3}
-                      fill={ai ? 'url(#gAi)' : 'url(#gUser)'}
+                      fill={ai ? 'url(#gAi)' : n.accepted ? 'url(#gAccepted)' : 'url(#gUser)'}
                       fillOpacity={0.55 + vel * 0.45}
                       stroke={sel ? '#fff' : 'rgba(255,255,255,0.18)'}
-                      strokeWidth={sel ? 1.5 : 0.6}
+                      strokeWidth={sel ? 2 : 1}
+                      strokeDasharray={ai && !sel ? '3 2' : undefined}
                       style={{ filter: sel ? 'drop-shadow(0 0 5px rgba(255,255,255,.55))' : ai ? 'drop-shadow(0 2px 6px rgba(79,227,255,.25))' : 'drop-shadow(0 2px 6px rgba(255,91,214,.25))' }}
                       onPointerDown={(e) => onNoteDown(e, n, 'move')}
                     />
+                    {n.accepted && w >= 8 && w <= 30 && <path d={`M${x + 2},${y + 7} l2,3 l4,-6`} fill="none" stroke="#fff" strokeWidth={1.4} pointerEvents="none" />}
                     {/* ベロシティ表示 */}
                     {/* ベロシティ: 左端の縦バー (高さ = 強さ) */}
                     <rect x={x + 1.5} y={y + 1.5 + (ROW - 5) * (1 - vel)} width={1.6} height={Math.max(1.5, (ROW - 5) * vel)} rx={0.8} fill="rgba(255,255,255,.75)" pointerEvents="none" />
                     {motif && <circle cx={x + w - 5} cy={y + (ROW - 2) / 2} r={1.8} fill="#fff" opacity={0.9} pointerEvents="none" />}
                     {w > 30 && (
-                      <text x={x + 6} y={y + 9.8} fontSize={8} fontWeight={500} fill="rgba(255,255,255,.9)" pointerEvents="none" fontFamily="JetBrains Mono">
-                        {midiToName(n.midiNoteNumber)}
+                      <text x={x + 6} y={y + 9.8} fontSize={10} fontWeight={600} fill="rgba(255,255,255,.9)" pointerEvents="none" fontFamily="JetBrains Mono">
+                        {n.accepted ? '✓ ' : ai ? '◇ ' : '● '}{midiToName(n.midiNoteNumber)}
                       </text>
                     )}
                     {/* リサイズハンドル */}
@@ -491,8 +513,8 @@ function PianoRollImpl({ state, dispatch, harmony = null }: { state: State; disp
       </div>
       {sequence.length === 0 && (
         <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center text-center">
-          <p className="mt-2 text-[14px] font-medium text-[var(--tx)]">鍵盤を弾くか、グリッドをダブルクリックして音符を置く</p>
-          <p className="mt-1 text-[11.5px] text-[var(--tx-3)]">録音ボタン（R）でリアルタイム入力もできます</p>
+          <p className="mt-2 text-[14px] font-medium text-[var(--tx)]">「メロディを生成」で、最初の音符を作りましょう</p>
+          <p className="mt-1 text-[11.5px] text-[var(--tx-3)]">「音符を追加」や録音から、自分で作り始めることもできます</p>
         </div>
       )}
     </div>
