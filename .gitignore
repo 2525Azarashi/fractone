@@ -35,3 +35,6 @@ lerna-debug.log*
 public/static/app.js
 public/static/app.css
 .pm2/
+
+# Vercel local settings and Build Output API artifacts
+.vercel/
