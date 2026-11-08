@@ -14,6 +14,8 @@ const context = await browser.newContext({ viewport: { width: 1440, height: 1000
 const page = await context.newPage()
 page.on('pageerror', (e) => { errors.push(e.message); console.error('BROWSER ERROR:', e.stack) })
 const saved = async () => {
+  // Native keyboard events can resolve before React schedules the 400ms save.
+  await page.waitForTimeout(500)
   await page.waitForFunction(() => document.querySelector('.save-status')?.textContent.includes('保存済み'))
   return page.evaluate(() => JSON.parse(localStorage.getItem('fractone:v1')))
 }
