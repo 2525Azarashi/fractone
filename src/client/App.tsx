@@ -2,7 +2,7 @@
 // FracTone — 最上位コンポーネント (状態は useReducer で一元管理)
 // ============================================================
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
-import { initState, reducer, noteCounts, demoSequence, type Tab } from './state'
+import { initState, reducer, type Tab } from './state'
 import type { Analysis, ComposeParams, ComposeResult, Note } from '../lib/types'
 import { audio, toMidiFile } from '../lib/audio-engine'
 import { harmonize, type ChordStyle } from '../lib/chord-generator'
@@ -18,7 +18,7 @@ import { PitchViz } from './components/PitchViz'
 import { RhythmViz } from './components/RhythmViz'
 import { AudioPanel } from './components/AudioPanel'
 import { Controls } from './components/Controls'
-import { Toggle, useDialogFocus } from './components/ui'
+import { Toggle } from './components/ui'
 import { Splash } from './components/Splash'
 import { ComposeOverlay, FormReveal } from './components/ComposeOverlay'
 import { useSpotlight } from './components/fx'
@@ -55,14 +55,10 @@ export default function App() {
   const [takes, setTakes] = useState<Take[]>(() => { try { return JSON.parse(localStorage.getItem('fractone:takes') || '[]') } catch { return [] } })
   const [currentTake, setCurrentTake] = useState<string | null>(null)
   const overlayRef = useRef(false)
-  const [splash, setSplash] = useState(() => { try { return !localStorage.getItem('fractone:started') } catch { return false } })
-  const [auditioned, setAuditioned] = useState(false)
-  const [saveStatus, setSaveStatus] = useState<'saving' | 'saved' | 'error'>('saving')
-  const [savedAt, setSavedAt] = useState<string>('')
-  const composeLock = useRef(false)
-  const persistRef = useRef<() => boolean>(() => true)
+  overlayRef.current = palette || sheet
+  const [splash, setSplash] = useState(true)
   const [help, setHelp] = useState(false)
-  overlayRef.current = palette || sheet || help || splash
+  const [coach, setCoach] = useState(() => { try { return !localStorage.getItem('fractone:coached') } catch { return false } })
   const [burst, setBurst] = useState<{ depth: number; mode: string; seed: number } | null>(null)
   const [reveal, setReveal] = useState<ComposeResult | null>(null)
   const prevAnalysis = useRef<Analysis | null>(null)
@@ -70,12 +66,15 @@ export default function App() {
   const pressed = useRef(new Map<number, { t: number; vel: number }>())
   const lastMode = useRef<'continue' | 'new'>('continue')
   const volBeforeMute = useRef(0.75)
-  const workspaceRef = useRef<HTMLDivElement>(null)
-  useEffect(() => { if (workspaceRef.current) workspaceRef.current.inert = splash || palette || sheet || help }, [splash, palette, sheet, help])
 
   const toast = useCallback((text: string, tone: ToastItem['tone'] = 'mag', opt?: { action?: ToastItem['action']; ms?: number }) => {
     toaster.push(text, tone, opt)
   }, [toaster.push]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // テイクの永続化 (最大 24 件・お気に入りは優先して残す)
+  useEffect(() => {
+    try { localStorage.setItem('fractone:takes', JSON.stringify(takes.slice(0, 24))) } catch {}
+  }, [takes])
 
   // ---- オーディオ設定の反映 / 可視化コールバック ----
   useEffect(() => audio.update(state.audio), [state.audio])
@@ -89,50 +88,15 @@ export default function App() {
     }
   }, [])
 
-  // Working notes and comparison takes share one visible persistence status.
-  const persist = useCallback(() => {
-    try {
-      localStorage.setItem('fractone:v1', JSON.stringify({ sequence: state.sequence, params: state.params, audio: state.audio, harmony: state.harmony, chordsOn: state.chordsOn }))
-      localStorage.setItem('fractone:takes', JSON.stringify(takes.slice(0, 24)))
-      setSaveStatus('saved')
-      setSavedAt(new Date().toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' }))
-      return true
-    } catch {
-      setSaveStatus('error')
-      return false
-    }
-  }, [state.sequence, state.params, state.audio, state.harmony, state.chordsOn, takes])
-  persistRef.current = persist
+  // ---- 永続化 (localStorage) ----
   useEffect(() => {
-    setSaveStatus('saving')
-    const id = setTimeout(persist, 400)
+    const id = setTimeout(() => {
+      try {
+        localStorage.setItem('fractone:v1', JSON.stringify({ sequence: state.sequence, params: state.params, audio: state.audio, harmony: state.harmony, chordsOn: state.chordsOn }))
+      } catch {}
+    }, 400)
     return () => clearTimeout(id)
-  }, [persist])
-  useEffect(() => {
-    const flush = () => { persistRef.current() }
-    const leave = (event: BeforeUnloadEvent) => {
-      if (!persistRef.current()) { event.preventDefault(); event.returnValue = '' }
-    }
-    window.addEventListener('pagehide', flush)
-    window.addEventListener('beforeunload', leave)
-    return () => { window.removeEventListener('pagehide', flush); window.removeEventListener('beforeunload', leave) }
-  }, [])
-  useEffect(() => { setAuditioned(false) }, [state.sequence])
-
-  const snapshot = (s: typeof state, mode: 'new' | 'continue', name: string): Take => {
-    const a = analyzeNow(s.sequence, s.params)
-    return { id: uid('t'), at: Date.now(), name, mode, seed: s.params.seed, key: s.params.key, scale: s.params.scale, bpm: s.params.bpm, notes: s.sequence.map((n) => ({ ...n })), params: { ...s.params }, audio: { ...s.audio }, harmony: { ...s.harmony }, chordsOn: s.chordsOn, fav: false, stats: { harmony: a.harmony, motif: a.motifRepetition, smooth: a.smoothness } }
-  }
-  const addTake = useCallback((take: Take) => {
-    setTakes((ts) => {
-      if (ts.some((t) => JSON.stringify([t.notes, t.params, t.audio, t.harmony, t.chordsOn]) === JSON.stringify([take.notes, take.params, take.audio, take.harmony, take.chordsOn]))) return ts
-      return [take, ...ts.filter((t) => t.fav), ...ts.filter((t) => !t.fav)].slice(0, 24)
-    })
-  }, [])
-  const archiveCurrent = useCallback(() => {
-    const s = stateRef.current
-    if (s.sequence.length) addTake(snapshot(s, lastMode.current, '切替前の編集 · ' + new Date().toLocaleTimeString('ja-JP')))
-  }, [addTake])
+  }, [state.sequence, state.params, state.audio, state.harmony, state.chordsOn])
 
   // ---- コード生成: メロディ (ユーザー + AI) に和声づけ。数ms なので変更のたびに再計算 ----
   const harmony = useMemo(() => {
@@ -151,9 +115,11 @@ export default function App() {
     [state.sequence, state.params.key, state.params.scale, state.params.bpm, state.params.timeSig],
   )
 
+  const spb = 60 / state.params.bpm
+  const bpb = TIME_SIGS[state.params.timeSig].beatsPerBar
+
   // ---------------- 演奏 & 録音 ----------------
   const press = useCallback((midi: number, vel = 0.85) => {
-    if (composeLock.current) return
     audio.noteOn(midi, vel)
     dispatch({ type: 'keyDown', midi })
     if (stateRef.current.status === 'recording') pressed.current.set(midi, { t: audio.position(), vel })
@@ -191,7 +157,6 @@ export default function App() {
 
   const togglePlay = useCallback(() => {
     const s = stateRef.current
-    if (composeLock.current || s.status === 'composing') return
     if (s.status === 'playing' || s.status === 'recording') {
       const pos = audio.position()
       audio.stop(false)
@@ -204,14 +169,12 @@ export default function App() {
     if (!s.sequence.length) return toast('まず音符を置いてください', 'cy')
     const end = s.sequence.reduce((m, n) => Math.max(m, n.startTime + n.duration), 0)
     const from = s.cursor >= end - 0.05 ? 0 : s.cursor
-    setAuditioned(true)
     audio.play(withChords(s.sequence), from, { bpm: s.params.bpm, beatsPerBar: TIME_SIGS[s.params.timeSig].beatsPerBar, loop: s.loop })
     dispatch({ type: 'status', status: 'playing' })
   }, [toast])
 
   const toggleRecord = useCallback(() => {
     const s = stateRef.current
-    if (composeLock.current || s.status === 'composing') return
     if (s.status === 'recording') {
       stopAll()
       toast('録音を停止しました', 'mint')
@@ -226,77 +189,72 @@ export default function App() {
 
   // ---------------- 作曲 (中点変位法) ----------------
   // live=true: スライダー操作中の即時再作曲 (クライアント実行・演出なし)
-  const runCompose = useCallback(async (mode: 'continue' | 'new', seedOverride?: number, live = false, replacing = false) => {
+  const runCompose = useCallback(async (mode: 'continue' | 'new', seedOverride?: number, live = false) => {
     const s = stateRef.current
-    if (composeLock.current || s.status === 'recording') return
-    const counts = noteCounts(s.sequence)
-    if (mode === 'continue' && !live && !replacing && counts.proposed) return toast('まずAI提案を採用してください。そのあと続きを作れます。', 'cy')
-    const userSeq = s.sequence.filter((n) => n.source !== 'ai')
-    if (mode === 'continue' && userSeq.length < ((replacing || live) ? 1 : 2)) return toast('続きを作るには、入力・採用済みの音符が2音以上必要です', 'cy')
-    composeLock.current = true
-    const params = { ...s.params, seed: seedOverride ?? s.params.seed }
+    if (!live) audio.stop(false)
     lastMode.current = mode
-    if (!live) archiveCurrent()
-    audio.stop(false)
-    dispatch({ type: 'clearAiKeys' })
-    dispatch({ type: 'status', status: 'composing', message: 'メロディを生成中' })
+    const params = { ...s.params, seed: seedOverride ?? s.params.seed }
     if (seedOverride !== undefined) dispatch({ type: 'params', patch: { seed: seedOverride } })
+    const userSeq = s.sequence.filter((n) => n.source !== 'ai')
+    if (mode === 'continue' && userSeq.length < 2) return toast('続きを作るには2音以上入力してください', 'cy')
+    // 比較用に直前の分析を保持 (Live 連続更新中は基準を固定し、操作開始前との差を見せる)
     const now = Date.now()
-    const recordLive = !live || now - lastLiveAt.current > 1500
-    if (recordLive) prevAnalysis.current = analyzeNow(s.sequence, s.params)
+    if (!live || now - lastLiveAt.current > 1500) prevAnalysis.current = analyzeNow(s.sequence, s.params)
     if (live) lastLiveAt.current = now
-    const t0 = performance.now()
-    if (!live) setBurst({ depth: params.depth, mode, seed: params.seed })
-    try {
-      let result: ComposeResult
-      const request = { mode, sequence: mode === 'continue' ? userSeq : [], params }
-      if (live) result = compose(request, 'client')
-      else {
-        try {
-          const res = await fetch('/api/compose', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(request), signal: AbortSignal.timeout(12000) })
-          if (!res.ok) throw new Error(`HTTP ${res.status}`)
-          result = (await res.json()).result
-          if (!Array.isArray(result?.notes) || !Array.isArray(result?.form) || !result.notes.every((n) => n && Number.isFinite(n.midiNoteNumber) && Number.isFinite(n.startTime) && Number.isFinite(n.duration) && n.duration > 0)) throw new Error('Invalid composition response')
-        } catch {
-          result = compose(request, 'client')
-          toast('通信できないため、この端末で作曲しました。音符は通常どおり編集できます。', 'cy')
-        }
-      }
-      if (!live) await new Promise((r) => setTimeout(r, Math.max(0, OVERLAY_MS - (performance.now() - t0))))
-      const next: Note[] = mode === 'continue' ? [...userSeq, ...result.notes] : result.notes
-      const take = !live ? snapshot({ ...s, sequence: next, params }, mode, `${mode === 'continue' ? '続きの提案' : '新規の提案'} · ${result.form.map((f) => f.label).join(' ')}`) : null
-      dispatch({ type: 'setSequence', seq: next, record: recordLive })
+    if (live) {
+      const result = compose({ mode, sequence: mode === 'continue' ? userSeq : [], params }, 'client')
+      dispatch({ type: 'setSequence', seq: mode === 'continue' ? [...userSeq, ...result.notes] : result.notes, record: false })
       dispatch({ type: 'result', result })
-      dispatch({ type: 'status', status: 'done', message: `${result.notes.length}音を提案しました` })
-      if (!live && take) {
-        setReveal(result)
-
-        addTake(take)
-        setCurrentTake(take.id)
-        try { localStorage.setItem('fractone:coached', '1') } catch {}
-        setTimeout(() => setReveal(null), 1200)
-        toast(`${result.notes.length}音を提案しました。再生して聴いてみましょう。`, 'cy', { action: { label: '案を比較', run: () => setSheet(true) } })
-        const from = mode === 'continue' ? Math.max(0, (result.startBeat - TIME_SIGS[params.timeSig].beatsPerBar) * (60 / params.bpm)) : 0
-        dispatch({ type: 'cursor', t: from })
-        setIdlePosition(from)
-      }
-    } catch {
-      dispatch({ type: 'status', status: 'error', message: '作曲できませんでした。現在の音符は保持されています。設定を確認して再試行してください。' })
-      toast('作曲に失敗しました。現在の音符は残っています。', 'warn')
-    } finally {
-      setBurst(null)
-      composeLock.current = false
+      return
     }
-  }, [toast, archiveCurrent, addTake])
-
-  // Reroll replaces pending notes only; works after reload, Undo, or take loading.
-  const reroll = useCallback(() => {
-    const s = stateRef.current
-    if (!noteCounts(s.sequence).proposed) return
-    const mode = noteCounts(s.sequence).fixed > 0 ? 'continue' : 'new'
-    // Continuing a proposal uses the same confirmed base, not the proposed notes.
-    return runCompose(mode, Math.floor(Math.random() * 99999), false, true)
-  }, [runCompose])
+    dispatch({ type: 'status', status: 'composing' })
+    setBurst({ depth: params.depth, mode, seed: params.seed })
+    const t0 = performance.now()
+    let result: ComposeResult
+    try {
+      const res = await fetch('/api/compose', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mode, sequence: mode === 'continue' ? userSeq : [], params }),
+      })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      result = (await res.json()).result
+    } catch {
+      // オフライン時はクライアントで同じアルゴリズムを実行
+      result = compose({ mode, sequence: mode === 'continue' ? userSeq : [], params }, 'client')
+    }
+    // 演出: パイプライン図解を最後まで見せる
+    const wait = Math.max(0, OVERLAY_MS - (performance.now() - t0))
+    await new Promise((r) => setTimeout(r, wait))
+    setBurst(null)
+    const next: Note[] = mode === 'continue' ? [...userSeq, ...result.notes] : result.notes
+    dispatch({ type: 'setSequence', seq: next })
+    dispatch({ type: 'result', result })
+    dispatch({ type: 'status', status: 'done' })
+    setReveal(result)
+    // テイクとして保存
+    {
+      const a = analyzeNow(next, params)
+      const take: Take = {
+        id: uid('t'), at: Date.now(), seed: params.seed, mode, key: params.key, scale: params.scale, bpm: params.bpm, notes: next, fav: false,
+        name: `${mode === 'continue' ? '続き' : '新規'} · ${result.form.map((f) => f.label).join(' ')}`,
+        stats: { harmony: a.harmony, motif: a.motifRepetition, smooth: a.smoothness },
+      }
+      setTakes((ts) => {
+        const favs = ts.filter((t) => t.fav), rest = ts.filter((t) => !t.fav)
+        return [take, ...favs, ...rest].slice(0, 24)
+      })
+      setCurrentTake(take.id)
+    }
+    setCoach(false)
+    try { localStorage.setItem('fractone:coached', '1') } catch {}
+    setTimeout(() => setReveal(null), 1900)
+    toast(`${result.notes.length} 音符を作曲 · テイクに保存しました`, 'cy', { action: { label: 'テイク一覧', run: () => setSheet(true) } })
+    // 生成部分の頭から試聴
+    const from = mode === 'continue' ? Math.max(0, result.startBeat * (60 / params.bpm) - (60 / params.bpm) * TIME_SIGS[params.timeSig].beatsPerBar) : 0
+    dispatch({ type: 'cursor', t: from })
+    setIdlePosition(from)
+  }, [toast])
 
   // ---- Live モード: 生成済みの状態でパラメータが変わったら即時再作曲 ----
   const liveKey = [state.params.bars, state.params.range, state.params.displacement, state.params.depth, state.params.roughness, state.params.motifStrength, state.params.humanize, state.params.density, state.params.key, state.params.scale, state.params.timeSig, state.params.seed].join('|')
@@ -305,15 +263,15 @@ export default function App() {
     if (lastLiveKey.current === liveKey) return
     lastLiveKey.current = liveKey
     const s = stateRef.current
-    if (!s.live || !noteCounts(s.sequence).proposed || composeLock.current || s.status === 'recording' || s.status === 'playing') return
-    const id = setTimeout(() => runCompose(noteCounts(s.sequence).fixed > 0 ? 'continue' : 'new', undefined, true), 120)
+    if (!s.live || !s.result || s.status === 'composing' || s.status === 'recording') return
+    const id = setTimeout(() => runCompose(lastMode.current, undefined, true), 120)
     return () => clearTimeout(id)
   }, [liveKey, runCompose])
 
   // ---------------- 編集 ----------------
   const deleteSelected = useCallback(() => {
     const s = stateRef.current
-    if (composeLock.current || ['playing', 'recording'].includes(s.status) || !s.selected.length) return
+    if (!s.selected.length) return
     const n = s.selected.length
     dispatch({ type: 'removeNotes', ids: s.selected })
     toast(`${n} 音符を削除`, 'warn', { action: { label: '元に戻す', run: () => dispatch({ type: 'undo' }) } })
@@ -321,7 +279,6 @@ export default function App() {
 
   const quantize = useCallback(() => {
     const s = stateRef.current
-    if (composeLock.current || !s.sequence.length) return
     const spbN = 60 / s.params.bpm
     const g = s.snap
     const target = s.selected.length ? s.sequence.filter((n) => s.selected.includes(n.id)) : s.sequence
@@ -339,16 +296,13 @@ export default function App() {
 
   const acceptAi = useCallback(() => {
     const s = stateRef.current
-    if (composeLock.current || !noteCounts(s.sequence).proposed) return
-    stopAll()
-    dispatch({ type: 'setSequence', seq: s.sequence.map((n) => (n.source === 'ai' ? { ...n, source: 'user' as const, accepted: true } : n)) })
+    dispatch({ type: 'setSequence', seq: s.sequence.map((n) => (n.source === 'ai' ? { ...n, source: 'user' as const, id: uid('u') } : n)) })
     dispatch({ type: 'result', result: null })
     toast('AI の音符を採用しました — さらに続きを作れます', 'mint')
-  }, [toast, stopAll])
+  }, [toast])
 
   const save = useCallback(() => {
     const s = stateRef.current
-    if (composeLock.current) return
     if (!s.sequence.length) return toast('保存する音符がありません', 'cy')
     const bytes = toMidiFile(withChords(s.sequence), s.params.bpm)
     const blob = new Blob([bytes as BlobPart], { type: 'audio/midi' })
@@ -362,36 +316,32 @@ export default function App() {
 
   const clearAll = useCallback(() => {
     const s = stateRef.current
-    if (composeLock.current || !s.sequence.length) return
-    archiveCurrent()
+    if (!s.sequence.length) return
     const n = s.sequence.length
     stopAll(true)
     dispatch({ type: 'setSequence', seq: [] })
     dispatch({ type: 'result', result: null })
     toast(`${n} 音符を消去しました`, 'warn', { action: { label: '元に戻す', run: () => dispatch({ type: 'undo' }) } })
-  }, [stopAll, toast, archiveCurrent])
+  }, [stopAll, toast])
 
   // ---------------- PCキーボード ----------------
   useEffect(() => {
     const isField = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement
-      return t && (t.closest('input, select, textarea, button, summary, [role=dialog], [contenteditable=true]'))
+      return t && (t.tagName === 'INPUT' || t.tagName === 'SELECT' || t.tagName === 'TEXTAREA')
     }
     const down = (e: KeyboardEvent) => {
-      if (isField(e)) return
+      if (isField(e) && (e.target as HTMLInputElement).type !== 'range') return
       if (overlayRef.current) return // パレット / シート表示中は演奏ショートカットを止める
       const s = stateRef.current
-      if (composeLock.current) return
       const k = e.key.toLowerCase()
       if (k === '/' || ((e.ctrlKey || e.metaKey) && k === 'k')) { e.preventDefault(); setPalette(true); return }
       if ((e.ctrlKey || e.metaKey) && k === 'z') {
-        if (s.status === 'playing' || s.status === 'recording') return
         e.preventDefault()
         dispatch({ type: e.shiftKey ? 'redo' : 'undo' })
         return
       }
       if (e.ctrlKey || e.metaKey || e.altKey) return
-      if (k === 'a' && e.shiftKey) { e.preventDefault(); dispatch({ type: 'select', ids: s.sequence.map((n) => n.id) }); return }
       if (k in KEYMAP) {
         e.preventDefault()
         if (e.repeat) return
@@ -404,7 +354,6 @@ export default function App() {
       if (k === 'r') { toggleRecord(); return }
       if (k === 'z') { dispatch({ type: 'octave', delta: -1 }); return }
       if (k === 'x') { dispatch({ type: 'octave', delta: 1 }); return }
-      if (s.status === 'playing' || s.status === 'recording') return
       if (k === 'delete' || k === 'backspace') { e.preventDefault(); deleteSelected(); return }
       if (['arrowup', 'arrowdown', 'arrowleft', 'arrowright'].includes(k) && s.selected.length) {
         e.preventDefault()
@@ -416,6 +365,7 @@ export default function App() {
         dispatch({ type: 'updateNotes', notes: moved, record: true })
         if (dp && moved[0]) audio.preview(moved[0].midiNoteNumber, 0.18)
       }
+      if (k === 'a' && e.shiftKey) dispatch({ type: 'select', ids: s.sequence.map((n) => n.id) })
     }
     const up = (e: KeyboardEvent) => {
       const k = e.key.toLowerCase()
@@ -478,21 +428,14 @@ export default function App() {
   const busy = state.status === 'composing'
 
   const loadTake = useCallback((t: Take) => {
-    if (composeLock.current) return
-    archiveCurrent()
     stopAll(true)
-    prevBpm.current = t.bpm
-    lastMode.current = t.mode
-    dispatch({ type: 'params', patch: t.params ?? { key: t.key, scale: t.scale, seed: t.seed, bpm: t.bpm } })
-    if (t.audio) dispatch({ type: 'audio', patch: t.audio })
-    if (t.harmony) dispatch({ type: 'harmony', patch: t.harmony })
-    if (t.chordsOn !== undefined && t.chordsOn !== stateRef.current.chordsOn) dispatch({ type: 'toggle', key: 'chordsOn' })
+    dispatch({ type: 'params', patch: { key: t.key, scale: t.scale, seed: t.seed, bpm: t.bpm } })
     dispatch({ type: 'setSequence', seq: t.notes.map((n) => ({ ...n })) })
     dispatch({ type: 'result', result: null })
     setCurrentTake(t.id)
     setSheet(false)
     toast(`「${t.name}」を読み込みました`, 'mint', { action: { label: '再生', run: () => setTimeout(() => togglePlay(), 30) } })
-  }, [stopAll, toast, togglePlay, archiveCurrent])
+  }, [stopAll, toast, togglePlay])
 
   // ---- Auto Complete (コマンドパレット) の候補 ----
   const commands = useMemo<Cmd[]>(() => {
@@ -500,7 +443,7 @@ export default function App() {
     const list: Cmd[] = [
       { id: 'continue', group: '作曲', title: '続きを作曲', keys: 'continue compose tsuzuki', hint: 'モチーフを検出して中点変位で展開', run: () => runCompose('continue') },
       { id: 'new', group: '作曲', title: '新規生成', keys: 'new generate shinki', hint: 'モチーフを新しく作って作曲', run: () => runCompose('new') },
-      { id: 'reroll', group: '作曲', title: '別案 (シードを変えて再作曲)', keys: 'reroll seed betsuan dice', run: reroll },
+      { id: 'reroll', group: '作曲', title: '別案 (シードを変えて再作曲)', keys: 'reroll seed betsuan dice', run: () => runCompose(lastMode.current, Math.floor(Math.random() * 99999)) },
       { id: 'accept', group: '作曲', title: 'AI の音符を採用', keys: 'accept adopt saiyou', run: acceptAi },
       { id: 'takes', group: '作曲', title: 'テイク・ライブラリを開く', keys: 'takes library take', hint: `${takes.length} 件`, run: () => setSheet(true) },
       { id: 'play', group: '再生', title: '再生 / 一時停止', keys: 'play pause saisei space', run: togglePlay },
@@ -537,13 +480,12 @@ export default function App() {
     INSTRUMENTS.forEach((ins) => list.push({ id: `ins-${ins.id}`, group: '音色', title: ins.label, keys: `${ins.id} tone instrument`, hint: ins.desc, run: () => dispatch({ type: 'audio', patch: { instrument: ins.id } }) }))
     takes.slice(0, 8).forEach((t) => list.push({ id: `take-${t.id}`, group: 'テイク', title: t.name, keys: `take ${t.seed}`, hint: `seed ${t.seed}`, run: () => loadTake(t) }))
     return list
-  }, [runCompose, reroll, acceptAi, togglePlay, stopAll, toggleRecord, save, quantize, clearAll, takes, loadTake])
+  }, [runCompose, acceptAi, togglePlay, stopAll, toggleRecord, save, quantize, clearAll, takes, loadTake])
 
   return (
     <div className="relative min-h-screen overflow-x-hidden">
-      <a href="#visual-panel" className="skip-link">作曲・編集エリアへ</a>
-      <PullToRefresh disabled={splash || busy || palette || sheet || state.status === 'recording' || state.status === 'playing' || !noteCounts(state.sequence).proposed} onRefresh={reroll}>
-      <div ref={workspaceRef} className="relative z-10 mx-auto flex max-w-[1720px] flex-col gap-4 p-3 md:p-5">
+      <PullToRefresh disabled={splash || busy || palette || sheet || state.status === 'recording'} onRefresh={() => runCompose(lastMode.current, Math.floor(Math.random() * 99999))}>
+      <div className="relative z-10 mx-auto flex max-w-[1720px] flex-col gap-4 p-3 md:p-5">
         <Header
           state={state}
           onHelp={() => setHelp(true)}
@@ -556,23 +498,17 @@ export default function App() {
           }}
         />
 
-        <div className="save-status flex flex-wrap items-center justify-between gap-2 px-1 text-xs text-[var(--tx-2)]">
-          <p role="status" aria-live="polite">{saveStatus === 'saving' ? '未保存の変更があります · このブラウザに保存中…' : saveStatus === 'error' ? '未保存：ブラウザへの保存に失敗しました。MIDIを書き出して保管してください。' : `保存済み ${savedAt} · この端末・ブラウザ内（クラウド保存ではありません）`}</p>
-          {saveStatus === 'error' && <button className="btn-ghost rounded-lg px-3" onClick={persist}>保存を再試行</button>}
-        </div>
-        {state.status === 'error' && <p role="alert" className="rounded-xl border border-amber-300/40 p-3 text-sm text-amber-100">{state.message}</p>}
-        <main className="workspace-grid">
+        <main className="grid grid-cols-1 gap-3 lg:grid-cols-[280px_minmax(0,1fr)_312px]">
           {/* ---- 左: 詳細パラメータ ---- */}
-          <aside id="param-panel" className="min-w-0" aria-label="曲の設定">
-            <ParamPanel state={state} dispatch={dispatch} harmony={harmony} />
+          <aside id="param-panel" className="thin-scroll order-2 min-w-0 lg:sticky lg:top-4 lg:order-1 lg:h-[calc(100vh-108px)] lg:min-h-[740px] lg:overflow-y-auto lg:pr-1">
+            <ParamPanel state={state} dispatch={dispatch} onSave={save} harmony={harmony} />
           </aside>
 
           {/* ---- 中央: 作曲ドック + 可視化 + 鍵盤 ---- */}
-          <section id="visual-panel" tabIndex={-1} aria-label="作曲・編集" className="editor-panel neu flex min-w-0 flex-col gap-3 rounded-2xl p-3 md:p-4" style={{ ['--d' as any]: '40ms' }}>
-            <ComposeDock state={state} busy={busy} onContinue={() => runCompose('continue')} onGenerate={() => runCompose('new')} onReroll={reroll} onPlay={togglePlay} onAccept={acceptAi} onTakes={() => setSheet(true)} onSave={save} auditioned={auditioned} takeCount={takes.length} />
-                        {/* タブ */}
+          <section id="visual-panel" className="neu fade-up order-1 flex lg:sticky lg:top-4 min-h-[660px] min-w-0 flex-col gap-3 rounded-2xl p-3 md:p-4 lg:order-2 lg:h-[calc(100vh-108px)] lg:min-h-[740px]" style={{ ['--d' as any]: '40ms' }}>
+            {/* タブ */}
             <div className="flex items-center gap-3">
-              <nav aria-label="編集ビュー" className="editor-tabs relative flex flex-wrap rounded-xl border border-[var(--line)] bg-black/25 p-1" >
+              <nav className="relative flex rounded-xl border border-[var(--line)] bg-black/25 p-1" role="tablist">
                 <span className="tab-indicator absolute top-1 h-[calc(100%-8px)] rounded-lg border border-[var(--line-2)] bg-white/[0.07]" style={{ left: ind.left, width: ind.width }} />
                 {TABS.map((t, i) => {
                   const Icon = t.icon
@@ -581,22 +517,43 @@ export default function App() {
                     <button
                       key={t.id}
                       ref={(el) => { tabRefs.current[i] = el }}
-                      aria-pressed={on}
+                      role="tab"
+                      aria-selected={on}
                       aria-label={t.label}
                       onClick={() => dispatch({ type: 'tab', tab: t.id })}
                       className={`relative z-10 flex items-center gap-2 rounded-lg px-3 py-1.5 text-[12px] font-medium transition-colors duration-300 ${on ? 'text-white' : 'text-[var(--tx-3)] hover:text-[var(--tx)]'}`}
                     >
                       <Icon size={14} className={on ? 'text-fuchsia-300' : ''} />
-                      <span>{t.label}</span>
+                      <span className="hidden sm:inline">{t.label}</span>
                     </button>
                   )
                 })}
               </nav>
-
+              <div className="ml-auto hidden items-center gap-4 text-[11px] text-[var(--tx-3)] md:flex">
+                <span><span key={analysis.noteCount} className="kt-swap num inline-block text-white">{analysis.noteCount}</span> 音符</span>
+                <span className="flex items-center gap-1.5"><i className="h-1.5 w-1.5 rounded-full bg-[#ff5bd6]" />あなた</span>
+                <span className="flex items-center gap-1.5"><i className="h-1.5 w-1.5 rounded-full bg-[#4fe3ff]" />AI</span>
+              </div>
             </div>
 
+            {/* 作曲ドック — 生成ボタンを音符のすぐ上に */}
+            {coach && !splash && !state.result && (
+              <div className="fade-up relative -mb-1 flex items-center gap-3 rounded-xl border border-fuchsia-300/20 bg-fuchsia-400/[0.06] px-3 py-2 text-[12px] text-[var(--tx)]" role="note">
+                <span className="num grid h-5 w-5 shrink-0 place-items-center rounded-full bg-[#ff5bd6] text-[10px] font-semibold text-white">1</span>
+                <span>デモのメロディが入っています。まずは <b className="font-semibold text-white">続きを作曲</b> を押してみましょう — 鍵盤（A S D F…）で自分のフレーズに差し替えることもできます。</span>
+                <button className="ml-auto shrink-0 text-[11px] text-[var(--tx-3)] hover:text-white" onClick={() => { setCoach(false); try { localStorage.setItem('fractone:coached', '1') } catch {} }}>閉じる</button>
+                <span className="absolute -bottom-1.5 left-14 h-3 w-3 rotate-45 border-b border-r border-fuchsia-300/20 bg-[#1a1220]" />
+              </div>
+            )}
+            <ComposeDock
+              state={state}
+              dispatch={dispatch}
+              busy={busy}
+              onContinue={() => runCompose('continue')}
+              onGenerate={() => runCompose('new')}
+              onReroll={() => runCompose(lastMode.current, Math.floor(Math.random() * 99999))}
+            />
 
-            {!state.sequence.length && <button className="self-start rounded-lg px-2 text-xs text-[var(--tx-2)] underline" onClick={() => { dispatch({ type: 'setSequence', seq: demoSequence(state.params.bpm) }); dispatch({ type: 'result', result: null }) }}>自分で入力する代わりにデモの音符を読み込む</button>}
             <Controls
               state={state}
               dispatch={dispatch}
@@ -609,7 +566,7 @@ export default function App() {
               onClear={clearAll}
             />
 
-            <div className="roll-viewport relative" data-no-ptr aria-label="音符エディター">
+            <div className="relative min-h-[300px] flex-1" data-no-ptr>
               <div key={state.tab} className="fade-up absolute inset-0">
                 {state.tab === 'roll' && <PianoRoll state={state} dispatch={dispatch} harmony={harmony} />}
                 {state.tab === 'pitch' && <div className="neu-inset h-full rounded-2xl p-3"><PitchViz sequence={state.sequence} result={state.result} bpm={state.params.bpm} keyRoot={state.params.key} scale={state.params.scale} generation={state.generation} /></div>}
@@ -642,11 +599,8 @@ export default function App() {
           </section>
 
           {/* ---- 右: 分析 ---- */}
-          <aside id="analysis-panel" className="workspace-analysis min-w-0" aria-label="メロディの分析">
-            <details className="disclosure">
-            <summary>メロディを知る・楽典分析 <span>計算の根拠と音の特徴を見る</span></summary>
+          <aside id="analysis-panel" className="thin-scroll order-3 min-w-0 lg:sticky lg:top-4 lg:h-[calc(100vh-108px)] lg:min-h-[740px] lg:overflow-y-auto lg:pr-1">
             <AnalysisPanel state={state} analysis={analysis} prev={prevAnalysis.current} result={state.result} loading={busy} harmony={harmony} />
-            </details>
           </aside>
         </main>
 
@@ -667,18 +621,16 @@ export default function App() {
           setTakes((ts) => ts.filter((x) => x.id !== t.id))
           toast(`「${t.name}」を削除`, 'warn', { action: { label: '元に戻す', run: () => setTakes((ts) => [t, ...ts]) } })
         }}
-        onReroll={reroll}
+        onReroll={() => runCompose(lastMode.current, Math.floor(Math.random() * 99999))}
       />
       {help && <HelpSheet onClose={() => setHelp(false)} />}
-      {splash && <Splash onStart={() => { audio.ensure(); try { localStorage.setItem('fractone:started', '1') } catch {} setSplash(false) }} />}
+      {splash && <Splash onStart={() => { audio.ensure(); [60, 64, 67, 72].forEach((m, i) => setTimeout(() => audio.preview(m, 0.4, 0.55), i * 110)); setSplash(false) }} />}
     </div>
   )
 }
 
 /** ショートカット一覧 */
 function HelpSheet({ onClose }: { onClose: () => void }) {
-  const dialog = useRef<HTMLDivElement>(null)
-  useDialogFocus(true, dialog)
   useEffect(() => {
     const on = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
     window.addEventListener('keydown', on)
@@ -693,7 +645,7 @@ function HelpSheet({ onClose }: { onClose: () => void }) {
   ]
   return (
     <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm" onClick={onClose}>
-      <div ref={dialog} role="dialog" aria-modal="true" aria-label="操作ガイド" tabIndex={-1} className="neu pop-in max-h-[90vh] overflow-auto w-full max-w-md rounded-2xl p-6" onClick={(e) => e.stopPropagation()}>
+      <div className="neu pop-in w-full max-w-md rounded-2xl p-6" onClick={(e) => e.stopPropagation()}>
         <h3 className="text-[18px] font-semibold text-white">操作ガイド</h3>
         <div className="mt-4 divide-y divide-[var(--line)]">
           {rows.map(([k, v], i) => (

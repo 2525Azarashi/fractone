@@ -131,12 +131,12 @@ export function reducer(s: State, a: Action): State {
     case 'undo': {
       if (!s.history.length) return s
       const prev = s.history[s.history.length - 1]
-      return { ...s, result: null, sequence: prev, history: s.history.slice(0, -1), future: [s.sequence, ...s.future], selected: [] }
+      return { ...s, sequence: prev, history: s.history.slice(0, -1), future: [s.sequence, ...s.future], selected: [] }
     }
     case 'redo': {
       if (!s.future.length) return s
       const [next, ...rest] = s.future
-      return { ...s, result: null, selected: [], sequence: next, history: [...s.history, s.sequence], future: rest }
+      return { ...s, sequence: next, history: [...s.history, s.sequence], future: rest }
     }
     case 'keyDown':
       return s.activeKeys.includes(a.midi) ? s : { ...s, activeKeys: [...s.activeKeys, a.midi] }
@@ -182,7 +182,7 @@ export function initState(): State {
   } catch {}
   const params = { ...DEFAULT_PARAMS, ...(saved?.params ?? {}) }
   return {
-    sequence: saved?.sequence ?? [],
+    sequence: saved?.sequence ?? demoSequence(params.bpm),
     history: [],
     future: [],
     activeKeys: [],
@@ -192,11 +192,11 @@ export function initState(): State {
     audio: { ...DEFAULT_AUDIO, ...(saved?.audio ?? {}) },
     tab: 'roll',
     status: 'idle',
-    message: '雰囲気を選んで、メロディを生成しましょう',
+    message: '準備OK — 鍵盤を弾いてみよう',
     result: null,
     analysis: null,
     loop: false,
-    live: false,
+    live: true,
     chordsOn: (saved as any)?.chordsOn ?? true,
     harmony: { ...DEFAULT_HARMONY, ...((saved as any)?.harmony ?? {}) },
     quantizeRec: true,
@@ -204,15 +204,5 @@ export function initState(): State {
     baseOctave: 4,
     cursor: 0,
     generation: 0,
-  }
-}
-
-/** 状態表示と作曲の有効条件で同じ分類を使う。古い保存データも入力として扱う。 */
-export function noteCounts(sequence: Note[]) {
-  return {
-    input: sequence.filter((n) => n.source !== 'ai' && !n.accepted).length,
-    proposed: sequence.filter((n) => n.source === 'ai').length,
-    accepted: sequence.filter((n) => n.source !== 'ai' && n.accepted).length,
-    fixed: sequence.filter((n) => n.source !== 'ai').length,
   }
 }

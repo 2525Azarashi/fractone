@@ -1,4 +1,3 @@
-import { useDialogFocus } from './ui'
 // ============================================================
 // CommandPalette — Auto Complete
 //  「/」 or Ctrl+K で開く。入力に応じて候補をあいまい一致で絞り込み、
@@ -49,8 +48,6 @@ function Hl({ text, hits }: { text: string; hits: number[] }) {
 export function CommandPalette({ open, onClose, commands }: { open: boolean; onClose: () => void; commands: Cmd[] }) {
   const [q, setQ] = useState('')
   const [sel, setSel] = useState(0)
-  const dialog = useRef<HTMLDivElement>(null)
-  useDialogFocus(open, dialog)
   const input = useRef<HTMLInputElement>(null)
   const list = useRef<HTMLDivElement>(null)
 
@@ -119,7 +116,7 @@ export function CommandPalette({ open, onClose, commands }: { open: boolean; onC
   let lastGroup = ''
   return (
     <div className="fixed inset-0 z-[96] flex items-start justify-center bg-[#07050c]/80 px-3 pt-[12vh]" onMouseDown={onClose} role="dialog" aria-modal="true" aria-label="コマンドパレット">
-      <div ref={dialog} tabIndex={-1} className="palette-in w-full rounded-2xl border border-[var(--line-2)] bg-[#120e1b] shadow-[0_40px_120px_rgba(0,0,0,.7)] max-w-[560px] overflow-hidden" onMouseDown={(e) => e.stopPropagation()}>
+      <div className="palette-in w-full rounded-2xl border border-[var(--line-2)] bg-[#120e1b] shadow-[0_40px_120px_rgba(0,0,0,.7)] max-w-[560px] overflow-hidden" onMouseDown={(e) => e.stopPropagation()}>
         <div className="relative flex items-center gap-3 border-b border-[var(--line)] px-4 py-3.5">
           <ISearch size={16} className="shrink-0 text-[var(--tx-3)]" />
           <div className="relative min-w-0 flex-1">
@@ -134,17 +131,16 @@ export function CommandPalette({ open, onClose, commands }: { open: boolean; onC
               onKeyDown={onKey}
               placeholder="コマンド・キー・音色を検索…  例: bpm 128 / D minor / 別案"
               className="relative w-full bg-transparent text-[15px] text-white outline-none placeholder:text-[var(--tx-3)]"
-              aria-label="コマンドを検索"
               role="combobox"
               aria-expanded
               aria-controls="palette-list"
-              aria-activedescendant={results[sel] ? `pc-${sel}` : undefined}
+              aria-activedescendant={`pc-${sel}`}
               autoComplete="off"
               spellCheck={false}
             />
           </div>
           {ghost && <kbd className="num hidden shrink-0 rounded border border-[var(--line-2)] px-1.5 text-[10px] text-[var(--tx-3)] sm:inline">Tab</kbd>}
-          <button aria-label="コマンドパレットを閉じる" onClick={onClose} className="btn-ghost rounded-lg px-3 text-xs">閉じる</button>
+          <kbd className="num shrink-0 rounded border border-[var(--line-2)] px-1.5 text-[10px] text-[var(--tx-3)]">Esc</kbd>
         </div>
         <div ref={list} id="palette-list" role="listbox" className="thin-scroll max-h-[min(56vh,440px)] overflow-y-auto p-2">
           {results.length === 0 && (

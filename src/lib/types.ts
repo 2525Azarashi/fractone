@@ -10,7 +10,6 @@ export interface Note {
   duration: number // 音の持続時間（秒）
   velocity?: number // 0-1 (省略時 0.8)
   source?: 'user' | 'ai' | 'chord' // 誰が作った音符か (chord = 自動伴奏)
-  accepted?: boolean // AI提案を採用済み。source=userとして編集・続きの入力に利用
   tag?: string // フレーズラベル (A, A', B ...) やモチーフ印
 }
 

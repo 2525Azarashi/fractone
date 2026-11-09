@@ -1,13 +1,13 @@
 // 左パネル: 生成パラメータ設定 (中点変位設定 / モチーフ & 人間らしさ / 音楽設定)
 import { useMemo, type Dispatch } from 'react'
 import type { Action, State } from '../state'
-import type { ComposeParams, ScaleName, TimeSignature } from '../../lib/types'
+import type { ScaleName, TimeSignature } from '../../lib/types'
 import { NOTE_NAMES, SCALES, createRng } from '../../lib/theory'
 import { midpointDisplace } from '../../lib/midpoint-displace'
 import { Card, SectionTitle, Select, Slider, Toggle } from './ui'
 import type { ChordStyle, HarmonyResult } from '../../lib/chord-generator'
 import { midiToName } from '../../lib/theory'
-import { IDice } from './icons'
+import { IDice, ISave } from './icons'
 
 /** パラメータに応じて形が変わる、中点変位のライブプレビュー (インフォグラフィック) */
 function MPDPreview({ depth, displacement, roughness, seed }: { depth: number; displacement: number; roughness: number; seed: number }) {
@@ -64,8 +64,8 @@ function HarmonyCard({ state, dispatch, harmony }: { state: State; dispatch: Dis
   const rates = [{ value: 0, label: '自動' }, { value: bpb, label: '1小節' }, ...(state.params.timeSig === '4/4' ? [{ value: 2, label: '2拍' }] : []), { value: 1, label: '1拍' }]
   return (
     <Card className="p-5" delay={150}>
-      <SectionTitle title="コード／伴奏の詳細" />
-      <div className={`grid transition-all duration-500 ${on ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-40'}`} aria-hidden={!on} style={{ display: on ? 'grid' : 'none', transitionTimingFunction: 'var(--ease)' }}>
+      <SectionTitle title="コード生成" right={<Toggle on={on} onChange={() => dispatch({ type: 'toggle', key: 'chordsOn' })} label={on ? 'オン' : 'オフ'} />} />
+      <div className={`grid transition-all duration-500 ${on ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-40'}`} style={{ transitionTimingFunction: 'var(--ease)' }}>
         <div className="overflow-hidden">
           <p className="mb-3 text-[11px] leading-relaxed text-[var(--tx-3)]">
             メロディの音から和音を選び、機能和声のつながりで進行を決めます。
@@ -95,7 +95,7 @@ function HarmonyCard({ state, dispatch, harmony }: { state: State; dispatch: Dis
             <Select label="伴奏の音域" value={h.register} options={[{ value: 45, label: '低め' }, { value: 52, label: '標準' }, { value: 59, label: '高め' }]} onChange={(v) => set({ register: v })} />
           </div>
           <div className="mt-3.5 space-y-3.5">
-            <Slider label="7th の割合（響きの彩り）" tone="cy" value={h.color} min={0} max={1} step={0.01} format={(v) => `${Math.round(v * 100)}%`} onChange={(v) => set({ color: v })} hint="三和音 ↔ 4つの音の響き。高いほどCM7・Dm7など、7thを加えた和音を多く使います。" />
+            <Slider label="7th の割合" tone="cy" value={h.color} min={0} max={1} step={0.01} format={(v) => `${Math.round(v * 100)}%`} onChange={(v) => set({ color: v })} hint="高いほど CM7 や Dm7 のようなおしゃれな響きに" />
             <Slider label="伴奏の音量" value={h.volume} min={0} max={1} step={0.01} format={(v) => `${Math.round(v * 100)}%`} onChange={(v) => set({ volume: v })} hint={`メロディより小さめが聴きやすい。伴奏は ${midiToName(h.register)} 付近で、前の和音から近い形を選びます`} />
           </div>
         </div>
@@ -104,50 +104,28 @@ function HarmonyCard({ state, dispatch, harmony }: { state: State; dispatch: Dis
   )
 }
 
-export function ParamPanel({ state, dispatch, harmony = null }: { state: State; dispatch: Dispatch<Action>; harmony?: HarmonyResult | null }) {
+export function ParamPanel({ state, dispatch, onSave, harmony = null }: { state: State; dispatch: Dispatch<Action>; onSave: () => void; harmony?: HarmonyResult | null }) {
   const p = state.params
   const set = (patch: Partial<State['params']>) => dispatch({ type: 'params', patch })
-  const moods: { id: string; label: string; patch: Partial<ComposeParams> }[] = [
-    { id: 'gentle', label: '穏やか・ゆったり', patch: { scale: 'major', displacement: 0.25, range: 10, density: 0.35, motifStrength: 0.8, roughness: 0.4 } },
-    { id: 'bright', label: '明るい・軽やか', patch: { scale: 'major', displacement: 0.55, range: 14, density: 0.5, motifStrength: 0.7, roughness: 0.55 } },
-    { id: 'mellow', label: '切ない・しっとり', patch: { scale: 'minor', displacement: 0.35, range: 12, density: 0.4, motifStrength: 0.75, roughness: 0.5 } },
-    { id: 'dramatic', label: 'ドラマチック・大胆', patch: { scale: 'harmonicMinor', displacement: 0.8, range: 24, density: 0.65, motifStrength: 0.5, roughness: 0.75 } },
-  ]
-  const mood = moods.find((m) => Object.entries(m.patch).every(([k, v]) => p[k as keyof ComposeParams] === v))?.id ?? 'custom'
-  const locked = ['composing', 'recording', 'playing'].includes(state.status)
   return (
-    <fieldset disabled={locked} className="settings-panel flex min-w-0 flex-col gap-3">
-      <Card className="p-4" delay={0}>
-        <h2 className="mb-1 text-base font-semibold text-white">1. かんたん設定</h2>
-        <p className="mb-4 text-xs leading-relaxed text-[var(--tx-2)]">まずは雰囲気だけでもOK。フラクタルがメロディを作ります。</p>
-        <div className="easy-settings grid grid-cols-2 gap-3">
-          <Select label="曲の雰囲気" value={mood} options={[...moods.map((m) => ({ value: m.id, label: m.label })), { value: 'custom', label: 'カスタム（現在の設定）' }]} onChange={(id) => { const m = moods.find((m) => m.id === id); if (m) set(m.patch) }} />
-          <Select label="キー（曲の中心音）" value={p.key} options={NOTE_NAMES.map((n, i) => ({ value: i, label: n }))} onChange={(key) => set({ key })} />
-          <div className="col-span-2"><Slider label="生成する長さ" value={p.bars} min={2} max={32} step={2} format={(v) => `${v} 小節`} onChange={(bars) => set({ bars })} hint="短く試すなら4小節。続きの作曲では、この長さを追加します。" /></div>
-          <div className="col-span-2"><Slider label="テンポ" value={p.bpm} min={50} max={200} format={(v) => `${v} BPM`} onChange={(bpm) => set({ bpm })} hint="ゆっくり 50 ↔ 速い 200。現在の音符も同じ拍位置で伸縮します。" /></div>
-          <div className="col-span-2"><Toggle on={state.chordsOn} onChange={() => dispatch({ type: 'toggle', key: 'chordsOn' })} label={`コード／伴奏を付ける：${state.chordsOn ? 'オン' : 'オフ'}`} /></div>
-        </div>
-      </Card>
-      <details className="disclosure advanced-settings">
-        <summary>詳細設定 <span>フラクタル・音階・伴奏</span></summary>
-        <p className="px-4 py-3 text-xs text-[var(--tx-2)]">開閉しても設定値は保持されます。変更は次の生成に使います。</p>
-        <div className="flex flex-col gap-3">
-      <Card className="p-4" delay={0}>
+    <div className="flex flex-col gap-3">
+      <Card className="p-5" delay={60}>
         <SectionTitle title="中点変位設定" />
         <MPDPreview depth={p.depth} displacement={p.displacement} roughness={p.roughness} seed={p.seed} />
         <div className="mt-4 space-y-3.5">
-          <Slider label="音域幅" value={p.range} min={5} max={36} format={(v) => `${v} 半音`} onChange={(v) => set({ range: v })} hint="狭いほど歌いやすいメロディに" />
-          <Slider label="変位強度" value={p.displacement} min={0} max={1} step={0.01} format={(v) => v.toFixed(2)} onChange={(v) => set({ displacement: v })} hint="穏やか ↔ 大きな跳躍。中点変位の振幅（曲線の上下幅）を変えます。" />
-          <Slider label="分解深度" value={p.depth} min={1} max={7} format={(v) => `Lv ${v}`} onChange={(v) => set({ depth: v })} hint="大まかな輪郭 ↔ 細かな変化。曲線を繰り返し分割する回数です。" />
-          <Slider label="粗さ (減衰率)" tone="cy" value={p.roughness} min={0.3} max={0.9} step={0.01} format={(v) => v.toFixed(2)} onChange={(v) => set({ roughness: v })} hint="なだらか ↔ ざらつく。細かな階層にも変化をどれだけ残すかを調整します。" />
+          <Slider label="基長 (小節数)" value={p.bars} min={2} max={32} step={2} format={(v) => `${v} 小節`} onChange={(v) => set({ bars: v })} hint="続き／新規として生成する小節数" />
+          <Slider label="音域幅" value={p.range} min={5} max={36} format={(v) => `${v} st`} onChange={(v) => set({ range: v })} hint="狭いほど歌いやすいメロディに" />
+          <Slider label="変位強度" value={p.displacement} min={0} max={1} step={0.01} format={(v) => v.toFixed(2)} onChange={(v) => set({ displacement: v })} hint="中点に加えるランダム変位の振幅。大きいほど跳躍が増える" />
+          <Slider label="分解深度" value={p.depth} min={1} max={7} format={(v) => `Lv ${v}`} onChange={(v) => set({ depth: v })} hint="再帰分割の回数。深いほど音符が細かくなる" />
+          <Slider label="粗さ (減衰率)" tone="cy" value={p.roughness} min={0.3} max={0.9} step={0.01} format={(v) => v.toFixed(2)} onChange={(v) => set({ roughness: v })} hint="階層ごとに変位がどれだけ小さくなるか" />
         </div>
       </Card>
 
       <Card className="p-5" delay={120}>
         <SectionTitle title="モチーフと人間らしさ" />
         <div className="space-y-3.5">
-          <Slider label="モチーフ反復度" value={p.motifStrength} min={0} max={1} step={0.01} format={(v) => `${Math.round(v * 100)}%`} onChange={(v) => set({ motifStrength: v })} hint="自由な展開 ↔ 同じ音型の繰り返し。モチーフは短い音のまとまりです。" />
-          <Slider label="リズム密度" tone="cy" value={p.density} min={0} max={1} step={0.01} format={(v) => `${Math.round(v * 100)}%`} onChange={(v) => set({ density: v })} hint="余白が多い ↔ 音符が多い。生成されるリズムの細かさを変えます。" />
+          <Slider label="モチーフ反復度" value={p.motifStrength} min={0} max={1} step={0.01} format={(v) => `${Math.round(v * 100)}%`} onChange={(v) => set({ motifStrength: v })} hint="高いほど A–A'–B–A のような繰り返し構造に" />
+          <Slider label="リズム密度" tone="cy" value={p.density} min={0} max={1} step={0.01} format={(v) => `${Math.round(v * 100)}%`} onChange={(v) => set({ density: v })} />
           <Slider label="人間らしい揺らぎ" tone="cy" value={p.humanize} min={0} max={1} step={0.01} format={(v) => `${Math.round(v * 100)}%`} onChange={(v) => set({ humanize: v })} hint="タイミングと強弱の自然な揺らぎ" />
         </div>
       </Card>
@@ -163,21 +141,23 @@ export function ParamPanel({ state, dispatch, harmony = null }: { state: State; 
           <label className="block">
             <span className="mb-1.5 block text-[11px] font-medium text-[var(--tx-3)]">シード</span>
             <div className="flex gap-1">
-              <input aria-label="シード" className="select num !bg-none !pr-2" type="number" value={p.seed} onChange={(e) => set({ seed: Number(e.target.value) || 1 })} />
-              <button className="neu-btn grid w-9 shrink-0 place-items-center rounded-[10px]" title="シードをランダムに変更" aria-label="シードをランダムに変更" onClick={() => set({ seed: Math.floor(Math.random() * 99999) })}><IDice size={15} /></button>
+              <input className="select num !bg-none !pr-2" type="number" value={p.seed} onChange={(e) => set({ seed: Number(e.target.value) || 1 })} />
+              <button className="neu-btn grid w-9 shrink-0 place-items-center rounded-[10px]" title="ランダム" onClick={() => set({ seed: Math.floor(Math.random() * 99999) })}><IDice size={15} /></button>
             </div>
           </label>
         </div>
-        <div className="mt-4 space-y-2">
-          <Toggle on={state.live} onChange={() => dispatch({ type: 'toggle', key: 'live' })} label={`Live再作曲：${state.live ? 'オン' : 'オフ'}`} />
-          <p className="text-xs leading-relaxed text-[var(--tx-2)]">オンにすると、提案中の音符だけを設定変更時に作り直します。採用後は変更しません。元の案はUndoで戻せます。</p>
+        <div className="mt-4">
+          <Slider label="テンポ" value={p.bpm} min={50} max={200} format={(v) => `${v} bpm`} onChange={(v) => set({ bpm: v })} />
         </div>
       </Card>
-      </div>
-      </details>
-      {locked && <p className="text-xs text-[var(--tx-2)]">設定は停止後に変更できます。</p>}
 
-
-    </fieldset>
+      <button onClick={onSave} className="btn-ghost fade-up flex items-center justify-between rounded-2xl px-5 py-3.5 text-left" style={{ ['--d' as any]: '240ms' }}>
+        <span>
+          <span className="block text-[13px] font-semibold">MIDI に書き出す</span>
+          <span className="block text-[10.5px] text-[var(--tx-3)]">ブラウザにも自動保存されています</span>
+        </span>
+        <ISave size={18} className="text-[var(--tx-2)]" />
+      </button>
+    </div>
   )
 }
