@@ -1,11 +1,11 @@
 // 汎用UI部品: Kinetic Typography / アニメーション数値 / スライダー / セレクト / ゲージ
-import { useId, useEffect, useRef, useState, type ReactNode, type RefObject } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 
 /** 1文字ずつ立ち上がる Kinetic Typography */
 export function KineticText({ text, className = '', wave = false, stagger = 32 }: { text: string; className?: string; wave?: boolean; stagger?: number }) {
   const grad = className.includes('grad-text')
   return (
-    <span className={`${wave ? '' : 'kt-in'} ${className}`} role="img" aria-label={text} key={text} style={{ perspective: 400 }}>
+    <span className={`${wave ? '' : 'kt-in'} ${className}`} aria-label={text} key={text} style={{ perspective: 400 }}>
       {Array.from(text).map((ch, i) => (
         <span
           key={i}
@@ -71,7 +71,6 @@ export function Slider({
   label: string; value: number; min: number; max: number; step?: number; onChange: (v: number) => void
   format?: (v: number) => string; hint?: string; tone?: 'mag' | 'cy'; icon?: string
 }) {
-  const hintId = useId()
   const pct = ((value - min) / (max - min)) * 100
   const [pulse, setPulse] = useState(0)
   return (
@@ -84,9 +83,6 @@ export function Slider({
       </div>
       <input
         type="range"
-        aria-label={label}
-        aria-valuetext={format ? format(value) : String(value)}
-        aria-describedby={hint ? hintId : undefined}
         className={`slider mt-1 ${tone === 'cy' ? 'cy' : ''}`}
         min={min}
         max={max}
@@ -99,7 +95,7 @@ export function Slider({
         }}
       />
       {hint && (
-        <p id={hintId} className="mt-1 text-[12px] leading-relaxed text-[var(--tx-2)]">
+        <p className="grid grid-rows-[0fr] text-[10.5px] leading-snug text-[var(--tx-3)] transition-all duration-300 group-hover:grid-rows-[1fr]">
           <span className="overflow-hidden">{hint}</span>
         </p>
       )}
@@ -113,7 +109,6 @@ export function Select<T extends string | number>({ label, value, options, onCha
       <span className="mb-1.5 block text-[11px] font-medium text-[var(--tx-3)]">{label}</span>
       <select
         className="select"
-        aria-label={label}
         value={String(value)}
         onChange={(e) => {
           const o = options.find((x) => String(x.value) === e.target.value)
@@ -206,23 +201,4 @@ export function Toggle({ on, onChange, label }: { on: boolean; onChange: (v: boo
       {label}
     </button>
   )
-}
-
-/** Keep modal keyboard navigation local and return focus to its opener. */
-export function useDialogFocus(open: boolean, ref: RefObject<HTMLElement>) {
-  useEffect(() => {
-    if (!open) return
-    const previous = document.activeElement as HTMLElement | null
-    const focusables = () => Array.from(ref.current?.querySelectorAll<HTMLElement>('button:not(:disabled), input:not(:disabled), select:not(:disabled), [href], [tabindex="0"]') ?? []).filter((el) => el.getClientRects().length > 0)
-    const timer = setTimeout(() => (focusables()[0] ?? ref.current)?.focus(), 40)
-    const trap = (event: KeyboardEvent) => {
-      if (event.key !== 'Tab') return
-      const els = focusables(), first = els[0], last = els[els.length - 1]
-      if (!first) { event.preventDefault(); ref.current?.focus(); return }
-      if (event.shiftKey && (document.activeElement === first || !ref.current?.contains(document.activeElement))) { event.preventDefault(); last.focus() }
-      else if (!event.shiftKey && (document.activeElement === last || !ref.current?.contains(document.activeElement))) { event.preventDefault(); first.focus() }
-    }
-    window.addEventListener('keydown', trap, true)
-    return () => { clearTimeout(timer); window.removeEventListener('keydown', trap, true); setTimeout(() => { if (previous?.isConnected) previous.focus() }, 0) }
-  }, [open, ref])
 }
